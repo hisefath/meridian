@@ -10,8 +10,9 @@ All suites run locally with `make test`, which needs only Docker and Node. The c
 | Program integration: per instruction | Vitest + **LiteSVM** (compiled `.so`) | 24 | ✅ 24 passed |
 | Program integration: lifecycle + 4 trade paths | Vitest + LiteSVM | 6 | ✅ 6 passed |
 | Program integration: randomized invariants | Vitest + LiteSVM | 3 (× 150 ops) | ✅ 3 passed |
+| Compute budget (worst cases) | Vitest + LiteSVM | 1 | ✅ passed |
 | Frontend UI flows | Vitest + Testing Library (jsdom) | 21 | ✅ 21 passed |
-| **Total automated** | | **88** | ✅ **all passing** |
+| **Total automated** | | **89** | ✅ **all passing** |
 | End-to-end on a live RPC network | `scripts/lifecycle.ts` against Surfpool | full lifecycle | ✅ vault 0, USDC conserved ([log](localnet-lifecycle-run.md)) |
 | Manual UI end-to-end (browser + wallet) | Next.js app against Surfpool | 4 trade paths, mint, constraint, P&L, history, settle + redeem | ✅ see below |
 | Devnet lifecycle | `make lifecycle-devnet` | — | ⏳ pending devnet SOL (faucet rate-limited); see [DEPLOYMENT.md](DEPLOYMENT.md) |
@@ -36,6 +37,17 @@ All suites run locally with `make test`, which needs only Docker and Node. The c
 | Frontend: position constraints | `tradepanel.test.tsx`: Buy YES blocked while holding NO (and vice versa), with guidance |
 | Frontend: portfolio and P&L | `portfolio.test.tsx`: average entry, unrealized/realized, NO-via-mint pricing |
 | Frontend: settlement display and redeem | `portfolio.test.tsx`: outcome + settle price, `Redeem $X` with the exact payout, $0 for losers, merge pairs |
+
+## Compute units (measured, `tests/compute.test.ts`, SBPF v0, opt-level "s" + LTO, 330 KB binary)
+| Instruction | CU | | Instruction | CU |
+|---|---|---|---|---|
+| create_strike_market (7 accounts init) | 69,569 | | claim_fills | 9,934 |
+| mint_pair | 15,578 | | cancel_order | 9,880 |
+| place_order (rests) | 10,809 | | redeem_pair | 12,655 |
+| **place_order sweeping 20 makers on a full 64-slot book** | **49,923** | | settle_market (Pyth checks) | 6,088 |
+| redeem | 10,896 | | | |
+
+The worst-case taker (20 fills, each a full O(64) scan) uses 25% of the default 200k per-instruction budget. A Buy NO (mint + sweep) fits in one transaction with plenty of room.
 
 ## Live-network verification (Surfpool, 2026-10-06)
 Surfpool is a LiteSVM-based local Solana network with a real JSON-RPC and WebSocket API. The program was deployed with the same `solana program deploy` command the devnet target uses.

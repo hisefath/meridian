@@ -41,7 +41,7 @@ A second NO book would split liquidity in half and open arbitrage between two bo
 ### 2.3 The CLOB (central limit order book)
 The book is a fixed array of 64 order slots in a **zero-copy** account. The program reads it in place without Borsh-deserializing 4 KB on every instruction. Each slot holds `{owner, side, price¢, qty, seq, claimable}`.
 
-- **Matching:** price-time priority. To find the best opposite order the program does a linear scan (best price, then lowest `seq`). With N=64 that costs about 3k CU per fill.
+- **Matching:** price-time priority. To find the best opposite order the program does a linear scan (best price, then lowest `seq`). Measured: a taker sweeping 20 makers on a full 64-slot book uses **49.9k CU** (~2k per fill, 25% of the default budget). See `docs/TEST_RESULTS.md`.
 - **Order types:** `Limit` (the remainder rests), `IOC` (the remainder is cancelled), `FOK` (all or revert). UI market orders are FOK with a slippage-bounded limit price.
 - **Escrow:** a resting bid escrows `qty × price` USDC and a resting ask escrows `qty` YES. Both go into book escrow accounts that are separate from the vault.
 - **Taker vs maker settlement:** the taker is paid immediately, because their token accounts are in the transaction. Makers are *not* in the taker's transaction, so their proceeds accrue to the slot's `claimable` and they pull them later with `claim_fills`. This is the standard non-custodial CLOB pattern (OpenBook's "settle funds", Phoenix's free balances). It keeps a taker's account list fixed and small no matter how many makers they hit.

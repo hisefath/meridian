@@ -4,6 +4,8 @@ resolver = "2"
 
 [profile.release]
 overflow-checks = true
+# size over speed: smaller program = less deploy rent; matching cost stays far under the CU limit
+opt-level = "s"
 lto = "fat"
 codegen-units = 1
 
