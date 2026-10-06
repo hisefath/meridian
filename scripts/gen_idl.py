@@ -10,6 +10,7 @@ U8x32x7 = {"array": [{"array": ["u8", 32]}, 7]}
 D = lambda n: {"defined": {"name": n}}
 TOKEN = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 SYS = "11111111111111111111111111111111"
+ATA_PROGRAM = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
 def acc(name, w=False, s=False, addr=None):
     a = {"name": name}
     if w: a["writable"] = True
@@ -24,6 +25,7 @@ admin_only = [acc("admin", s=True), acc("config", True)]
 ix = [
  ("initialize_config", [acc("admin", True, True), acc("config", True), acc("usdc_mint"), acc("system_program", addr=SYS)], [("params", D("ConfigParams"))]),
  ("set_admin", admin_only, [("new_admin", "pubkey")]),
+ ("accept_admin", [acc("pending_admin", s=True), acc("config", True)], []),
  ("set_paused", admin_only, [("paused", "bool")]),
  ("create_strike_market", create, [("ticker", "u8"), ("strike", "u64"), ("close_ts", "i64")]),
  ("add_strike", create, [("ticker", "u8"), ("strike", "u64"), ("close_ts", "i64")]),
@@ -33,13 +35,14 @@ ix = [
  ("place_order", trade, [("side", D("Side")), ("price", "u8"), ("qty", "u64"), ("order_type", D("OrderType"))]),
  ("cancel_order", trade, [("seq", "u64")]),
  ("claim_fills", trade, []),
+ ("crank_claim", [acc("config"), acc("market"), acc("book", True), acc("book_usdc", True), acc("book_yes", True), acc("owner"), acc("owner_usdc", True), acc("owner_yes", True), acc("usdc_mint"), acc("yes_mint"), acc("token_program", addr=TOKEN), acc("associated_token_program", addr=ATA_PROGRAM)], [("seq", "u64")]),
  ("settle_market", [acc("config"), acc("market", True), acc("price_update")], []),
  ("admin_settle", [acc("admin", s=True), acc("config"), acc("market", True)], [("price", "u64")]),
 ]
 S = lambda *f: {"kind": "struct", "fields": [{"name": n, "type": t} for n, t in f]}
 E = lambda *v: {"kind": "enum", "variants": [{"name": x} for x in v]}
 types = {
- "Config": S(("admin","pubkey"),("usdc_mint","pubkey"),("paused","bool"),("max_staleness_secs","u32"),("max_conf_bps","u16"),("override_delay_secs","u32"),("tickers",U8x8x7),("feed_ids",U8x32x7),("bump","u8")),
+ "Config": S(("admin","pubkey"),("pending_admin","pubkey"),("usdc_mint","pubkey"),("paused","bool"),("max_staleness_secs","u32"),("max_conf_bps","u16"),("override_delay_secs","u32"),("tickers",U8x8x7),("feed_ids",U8x32x7),("bump","u8")),
  "ConfigParams": S(("max_staleness_secs","u32"),("max_conf_bps","u16"),("override_delay_secs","u32"),("tickers",U8x8x7),("feed_ids",U8x32x7)),
  "Market": S(("ticker","u8"),("strike","u64"),("close_ts","i64"),("created_at","i64"),("collateral","u64"),("outcome",D("Outcome")),("settle_price","u64"),("settled_at","i64"),("settled_by_override","bool"),("bump","u8"),("yes_mint","pubkey"),("no_mint","pubkey"),("vault","pubkey"),("book","pubkey"),("book_usdc","pubkey"),("book_yes","pubkey")),
  "Outcome": E("Open","YesWon","NoWon"),

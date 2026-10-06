@@ -78,6 +78,30 @@
       ]
     },
     {
+      "name": "accept_admin",
+      "discriminator": [
+        112,
+        42,
+        45,
+        90,
+        116,
+        181,
+        13,
+        170
+      ],
+      "accounts": [
+        {
+          "name": "pending_admin",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "set_paused",
       "discriminator": [
         91,
@@ -608,6 +632,70 @@
       "args": []
     },
     {
+      "name": "crank_claim",
+      "discriminator": [
+        193,
+        62,
+        163,
+        14,
+        168,
+        236,
+        179,
+        103
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "market"
+        },
+        {
+          "name": "book",
+          "writable": true
+        },
+        {
+          "name": "book_usdc",
+          "writable": true
+        },
+        {
+          "name": "book_yes",
+          "writable": true
+        },
+        {
+          "name": "owner"
+        },
+        {
+          "name": "owner_usdc",
+          "writable": true
+        },
+        {
+          "name": "owner_yes",
+          "writable": true
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "yes_mint"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        }
+      ],
+      "args": [
+        {
+          "name": "seq",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "settle_market",
       "discriminator": [
         193,
@@ -966,6 +1054,10 @@
         "fields": [
           {
             "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "pending_admin",
             "type": "pubkey"
           },
           {

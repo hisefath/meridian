@@ -14,9 +14,13 @@ pub const MAX_ORDERS: usize = 64;
 #[derive(InitSpace)]
 pub struct Config {
     pub admin: Pubkey,
+    /// Two-step admin handover: proposed by `set_admin`, takes effect on `accept_admin`.
+    pub pending_admin: Pubkey,
     pub usdc_mint: Pubkey,
     pub paused: bool,
-    /// Max |publish_time - close_ts| accepted at settlement.
+    /// Max |publish_time - close_ts| accepted at settlement. Orders also stop this long
+    /// before the close, so no oracle print that could settle the market is public while
+    /// the book is still open.
     pub max_staleness_secs: u32,
     /// Max oracle confidence as a fraction of price, in basis points.
     pub max_conf_bps: u16,

@@ -59,3 +59,10 @@ export const deps: Deps = {
   sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
 };
 
+
+/** The settler's pre-checks must mirror the program exactly, so take the thresholds from chain. */
+export async function syncSettings() {
+  const cfg = await client.fetchConfig();
+  settings.maxStalenessSecs = cfg.maxStalenessSecs;
+  settings.maxConfBps = cfg.maxConfBps;
+}

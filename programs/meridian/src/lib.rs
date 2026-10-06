@@ -1,5 +1,6 @@
 #![allow(deprecated)] // anchor_spl::token::transfer — we don't need transfer_checked's extra mint account
 use anchor_lang::prelude::*;
+use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{self, Burn, Mint, MintTo, Token, TokenAccount, Transfer};
 
 pub mod book;
@@ -41,9 +42,14 @@ pub mod meridian {
     pub fn initialize_config(ctx: Context<InitializeConfig>, params: ConfigParams) -> Result<()> {
         require!(params.max_staleness_secs > 0, MeridianError::InvalidConfig);
         require!(params.max_conf_bps > 0 && params.max_conf_bps <= 10_000, MeridianError::InvalidConfig);
-        require!(params.override_delay_secs >= 60, MeridianError::InvalidConfig);
+        // the override must never pre-empt a still-valid oracle print
+        require!(
+            params.override_delay_secs >= 60 && params.override_delay_secs > params.max_staleness_secs,
+            MeridianError::InvalidConfig
+        );
         let c = &mut ctx.accounts.config;
         c.admin = ctx.accounts.admin.key();
+        c.pending_admin = Pubkey::default();
         c.usdc_mint = ctx.accounts.usdc_mint.key();
         c.paused = false;
         c.max_staleness_secs = params.max_staleness_secs;
@@ -55,9 +61,17 @@ pub mod meridian {
         Ok(())
     }
 
-    /// Hand the admin role to another key (e.g. a multisig).
+    /// Propose a new admin (e.g. a multisig). Nothing changes until it calls `accept_admin`,
+    /// so a typo can't lock the protocol out of pause and override.
     pub fn set_admin(ctx: Context<AdminOnly>, new_admin: Pubkey) -> Result<()> {
-        ctx.accounts.config.admin = new_admin;
+        ctx.accounts.config.pending_admin = new_admin;
+        Ok(())
+    }
+
+    pub fn accept_admin(ctx: Context<AcceptAdmin>) -> Result<()> {
+        let c = &mut ctx.accounts.config;
+        c.admin = c.pending_admin;
+        c.pending_admin = Pubkey::default();
         Ok(())
     }
 
@@ -153,7 +167,11 @@ pub mod meridian {
     pub fn place_order(ctx: Context<Trade>, side: Side, price: u8, qty: u64, order_type: OrderType) -> Result<()> {
         require!(!ctx.accounts.config.paused, MeridianError::Paused);
         let market = &ctx.accounts.market;
-        require!(market.is_open() && now()? < market.close_ts, MeridianError::MarketClosed);
+        // The book closes `max_staleness_secs` before close_ts: any print inside the settlement
+        // window is public the moment it's published, so trading through it would let anyone
+        // trade on a known outcome.
+        let halt = market.close_ts - ctx.accounts.config.max_staleness_secs as i64;
+        require!(market.is_open() && now()? < halt, MeridianError::MarketClosed);
         let owner = ctx.accounts.user.key();
         let e = {
             let mut book = ctx.accounts.book.load_mut()?;
@@ -224,6 +242,44 @@ pub mod meridian {
         require!(usdc > 0 || yes > 0, MeridianError::NothingToClaim);
         pay_from_book(&ctx.accounts, usdc, yes)?;
         emit!(FillsClaimed { market: ctx.accounts.market.key(), owner, usdc, yes });
+        Ok(())
+    }
+
+    /// Permissionless: push a slot's earned proceeds to its owner's token accounts and free it
+    /// if fully filled. Without this, filled-but-unclaimed slots could be farmed (64 tiny
+    /// self-trades) to keep the book full; any maker can crank them before quoting.
+    pub fn crank_claim(ctx: Context<CrankClaim>, seq: u64) -> Result<()> {
+        let owner = ctx.accounts.owner.key();
+        let (usdc, yes) = {
+            let mut book = ctx.accounts.book.load_mut()?;
+            let o = book
+                .orders
+                .iter_mut()
+                .find(|o| !o.is_free() && o.seq == seq && o.owner == owner)
+                .ok_or(MeridianError::OrderNotFound)?;
+            require!(o.claimable > 0, MeridianError::NothingToClaim);
+            let paid = if o.side == SIDE_BID { (0, o.claimable) } else { (o.claimable, 0) };
+            o.claimable = 0;
+            if o.qty == 0 {
+                *o = Order::default();
+            }
+            paid
+        };
+        let a = &ctx.accounts;
+        let seeds = market_seeds!(a.market);
+        for (from, to, amount) in [(&a.book_usdc, &a.owner_usdc, usdc), (&a.book_yes, &a.owner_yes, yes)] {
+            if amount > 0 {
+                token::transfer(
+                    CpiContext::new_with_signer(
+                        a.token_program.to_account_info(),
+                        Transfer { from: from.to_account_info(), to: to.to_account_info(), authority: a.market.to_account_info() },
+                        &[&seeds[..]],
+                    ),
+                    amount,
+                )?;
+            }
+        }
+        emit!(FillsClaimed { market: a.market.key(), owner, usdc, yes });
         Ok(())
     }
 
@@ -407,6 +463,39 @@ pub struct AdminOnly<'info> {
     pub admin: Signer<'info>,
     #[account(mut, seeds = [b"config"], bump = config.bump, has_one = admin @ MeridianError::Unauthorized)]
     pub config: Account<'info, Config>,
+}
+
+#[derive(Accounts)]
+pub struct AcceptAdmin<'info> {
+    #[account(address = config.pending_admin @ MeridianError::Unauthorized)]
+    pub pending_admin: Signer<'info>,
+    #[account(mut, seeds = [b"config"], bump = config.bump)]
+    pub config: Account<'info, Config>,
+}
+
+#[derive(Accounts)]
+pub struct CrankClaim<'info> {
+    #[account(seeds = [b"config"], bump = config.bump, has_one = usdc_mint)]
+    pub config: Box<Account<'info, Config>>,
+    #[account(has_one = book, has_one = book_usdc, has_one = book_yes, has_one = yes_mint)]
+    pub market: Box<Account<'info, Market>>,
+    #[account(mut)]
+    pub book: AccountLoader<'info, OrderBook>,
+    #[account(mut)]
+    pub book_usdc: Box<Account<'info, TokenAccount>>,
+    #[account(mut)]
+    pub book_yes: Box<Account<'info, TokenAccount>>,
+    /// CHECK: only used as the expected slot owner; funds go to its canonical ATAs.
+    pub owner: UncheckedAccount<'info>,
+    // ATAs can't be closed out from under the crank: anyone can (re)create them first in the same tx.
+    #[account(mut, associated_token::mint = usdc_mint, associated_token::authority = owner)]
+    pub owner_usdc: Box<Account<'info, TokenAccount>>,
+    #[account(mut, associated_token::mint = yes_mint, associated_token::authority = owner)]
+    pub owner_yes: Box<Account<'info, TokenAccount>>,
+    pub usdc_mint: Box<Account<'info, Mint>>,
+    pub yes_mint: Box<Account<'info, Mint>>,
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
 #[derive(Accounts)]

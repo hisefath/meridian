@@ -42,7 +42,8 @@ Running this **non-custodially on a fast chain** removes the intermediary. Colla
 | 8:00–8:30 | Create one on-chain market per strike: mints, vault and order book | Automation |
 | 9:00 | Markets visible; minting enabled | Frontend/Program |
 | 9:30–16:00 | Trading on the on-chain order book | Users |
-| 16:00 | **Trading and minting halt on-chain** (`now ≥ close_ts`) | Program |
+| 15:59 | **Order book halts on-chain** (`now ≥ close_ts − max_staleness`, 60s on devnet), so nobody trades once settlement prints exist | Program |
+| 16:00 | Close; minting stops; settlement window opens | Program |
 | ~16:00–16:05 | Post the oracle closing price and settle every market | Automation (permissionless) |
 | 16:05+ | Redemption: winners burn for $1 | Users |
 | 17:00+ | Admin override is possible *only if* the oracle path failed (1h delay) | Admin |

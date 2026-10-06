@@ -7,12 +7,12 @@ All suites run locally with `make test`, which needs only Docker and Node. The c
 | Program: pure Rust unit and property tests | `cargo test` (toolchain container) | 16 | ✅ 16 passed |
 | SDK unit tests | Vitest | 11 | ✅ 11 passed |
 | Automation jobs | Vitest | 7 | ✅ 7 passed |
-| Program integration: per instruction | Vitest + **LiteSVM** (compiled `.so`) | 24 | ✅ 24 passed |
+| Program integration: per instruction | Vitest + **LiteSVM** (compiled `.so`) | 27 | ✅ 27 passed |
 | Program integration: lifecycle + 4 trade paths | Vitest + LiteSVM | 6 | ✅ 6 passed |
 | Program integration: randomized invariants | Vitest + LiteSVM | 3 (× 150 ops) | ✅ 3 passed |
 | Compute budget (worst cases) | Vitest + LiteSVM | 1 | ✅ passed |
 | Frontend UI flows | Vitest + Testing Library (jsdom) | 21 | ✅ 21 passed |
-| **Total automated** | | **89** | ✅ **all passing** |
+| **Total automated** | | **92** | ✅ **all passing** |
 | End-to-end on a live RPC network | `scripts/lifecycle.ts` against Surfpool | full lifecycle | ✅ vault 0, USDC conserved ([log](localnet-lifecycle-run.md)) |
 | Manual UI end-to-end (browser + wallet) | Next.js app against Surfpool | 4 trade paths, mint, constraint, P&L, history, settle + redeem | ✅ see below |
 | Devnet lifecycle | `make lifecycle-devnet` | — | ⏳ pending devnet SOL (faucet rate-limited); see [DEPLOYMENT.md](DEPLOYMENT.md) |
@@ -61,6 +61,13 @@ Surfpool is a LiteSVM-based local Solana network with a real JSON-RPC and WebSoc
    - **Sell YES 10** (+$5.70) → **Buy NO 10** (one tx: mint + sell; −$4.60) → **Sell NO 10** (one tx: buy + merge; +$3.60). Balances reconciled to the cent
    - Portfolio: entry 30.0¢, mark 29.5¢, unrealized −$0.03, realized −$0.16 after a partial exit. History lists each fill with a tx link
    - Mint pairs → close → settlement → Redeem (see the settlement section below)
+
+## Independent security review (subagent, read-only code trace)
+| Severity | Finding | Fix | Test |
+|---|---|---|---|
+| High | 64 one-cent self-trades leave filled-but-unclaimed slots that only their owner can free, so the book is full and halted for the day | Permissionless `crank_claim` (pays the owner's ATA, frees the slot); SDK auto-cranks before a resting order | `griefing fix: 64 filled-but-unclaimed slots…` |
+| Medium | Pre-close Pyth prints inside the settlement window are public while the book is still open | Orders halt at `close_ts − max_staleness` | `book stops taking orders max_staleness before close` |
+| Low | `override_delay` could be ≤ the oracle window; one-step `set_admin` | `override_delay > max_staleness` enforced; two-step `set_admin` / `accept_admin` | `rejects an override delay…`, `admin handover is two-step` |
 
 ## Bugs found by the tests (and fixed)
 | Found by | Bug | Fix |

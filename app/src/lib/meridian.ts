@@ -24,6 +24,19 @@ export function useClient() {
   return useMemo(() => new MeridianClient(createProgram(connection), USDC_MINT), [connection]);
 }
 
+/** Protocol config (oracle window drives the pre-close trading halt; pause flag). */
+export function useConfig() {
+  const client = useClient();
+  const [cfg, setCfg] = useState<{ maxStalenessSecs: number; overrideDelaySecs: number; paused: boolean } | null>(null);
+  useEffect(() => {
+    client
+      .fetchConfig()
+      .then((c) => setCfg({ maxStalenessSecs: c.maxStalenessSecs, overrideDelaySecs: c.overrideDelaySecs, paused: c.paused }))
+      .catch(() => {});
+  }, [client]);
+  return cfg;
+}
+
 /** Bump to make hooks refetch right after a transaction lands. */
 export function useRefresh() {
   const [n, setN] = useState(0);

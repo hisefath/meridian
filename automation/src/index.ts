@@ -7,7 +7,7 @@
 import { PublicKey } from '@solana/web3.js';
 import { FEED_IDS, MICRO, TICKERS } from '@meridian/sdk';
 import { admin, chainNow, client, env, send } from './chain';
-import { deps, hermes, settings } from './deps';
+import { deps, hermes, settings, syncSettings } from './deps';
 import { morning, settleTick, type SettleState } from './jobs';
 
 function arg(name: string) {
@@ -39,6 +39,7 @@ async function run() {
 
 async function main() {
   const cmd = process.argv[2] ?? 'run';
+  if (cmd === 'run' || cmd === 'settle') await syncSettings();
   if (cmd === 'run') return run();
   if (cmd === 'morning') return console.log(await morning(deps, settings));
   if (cmd === 'settle') return console.log({ settled: await settleTick(deps, settings, new Map()) });

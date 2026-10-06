@@ -84,6 +84,30 @@ export type Meridian = {
       ]
     },
     {
+      "name": "acceptAdmin",
+      "discriminator": [
+        112,
+        42,
+        45,
+        90,
+        116,
+        181,
+        13,
+        170
+      ],
+      "accounts": [
+        {
+          "name": "pendingAdmin",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "setPaused",
       "discriminator": [
         91,
@@ -614,6 +638,70 @@ export type Meridian = {
       "args": []
     },
     {
+      "name": "crankClaim",
+      "discriminator": [
+        193,
+        62,
+        163,
+        14,
+        168,
+        236,
+        179,
+        103
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "market"
+        },
+        {
+          "name": "book",
+          "writable": true
+        },
+        {
+          "name": "bookUsdc",
+          "writable": true
+        },
+        {
+          "name": "bookYes",
+          "writable": true
+        },
+        {
+          "name": "owner"
+        },
+        {
+          "name": "ownerUsdc",
+          "writable": true
+        },
+        {
+          "name": "ownerYes",
+          "writable": true
+        },
+        {
+          "name": "usdcMint"
+        },
+        {
+          "name": "yesMint"
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associatedTokenProgram",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        }
+      ],
+      "args": [
+        {
+          "name": "seq",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "settleMarket",
       "discriminator": [
         193,
@@ -972,6 +1060,10 @@ export type Meridian = {
         "fields": [
           {
             "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "pendingAdmin",
             "type": "pubkey"
           },
           {

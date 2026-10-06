@@ -16,7 +16,7 @@ sequenceDiagram
     P-->>A: Market, YES/NO mints, vault, book, escrows
   end
 
-  Note over MM,T: 09:30–16:00 ET — trading
+  Note over MM,T: 09:30–15:59 ET — trading
   MM->>P: mint_pair(100) — vault += $100
   MM->>P: place_order(Ask YES @ 62¢ ×50, Limit)
   T->>P: place_order(Bid YES @ 62¢ ×10, IOC)  [Buy YES]
@@ -24,12 +24,13 @@ sequenceDiagram
   P-->>MM: claimable += $6.20
   T->>P: mint_pair(5) + place_order(Ask @ best bid, FOK)  [Buy NO, one tx]
 
-  Note over P: 16:00 ET — close_ts: mint + orders rejected on-chain
+  Note over P: 15:59 ET — close_ts − oracle window: orders rejected on-chain
+  Note over P: 16:00 ET — close_ts: minting stops, settlement opens
   A->>H: price update at close
   A->>R: post update (Full Wormhole verification)
   loop each strike of the ticker
     A->>P: settle_market(price_update)
-    P->>R: read PriceUpdateV2: feed id, |publish − close| ≤ 300s, conf ≤ 2%
+    P->>R: read PriceUpdateV2: feed id, |publish − close| ≤ window (60s devnet), conf ≤ 2%
     P-->>P: outcome = close ≥ strike ? YES : NO (immutable)
   end
   alt oracle fails for 15 min

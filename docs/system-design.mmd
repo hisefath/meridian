@@ -26,7 +26,7 @@ flowchart LR
 
   subgraph CHAIN["Solana devnet"]
     direction TB
-    PROG["<b>Meridian program</b> (Anchor/Rust)<br/>initialize_config · create_strike_market · add_strike<br/>mint_pair · place_order · cancel_order · claim_fills<br/>settle_market · admin_settle · redeem · redeem_pair · set_paused"]
+    PROG["<b>Meridian program</b> (Anchor/Rust)<br/>initialize_config · set_admin/accept_admin · set_paused<br/>create_strike_market · add_strike · mint_pair · redeem_pair<br/>place_order · cancel_order · claim_fills · crank_claim<br/>settle_market · admin_settle · redeem"]
     subgraph MKT["Per strike market (PDAs)"]
       M["Market<br/>strike · close_ts · outcome<br/>collateral accounting"]
       YM["YES mint"]

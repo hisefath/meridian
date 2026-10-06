@@ -2,6 +2,7 @@ import { Buffer } from 'buffer';
 import { Program, type Provider, type IdlAccounts } from '@coral-xyz/anchor';
 import BN from 'bn.js'; // direct: anchor's CJS `BN` re-export isn't visible to Node's ESM loader
 import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
   createAssociatedTokenAccountIdempotentInstruction,
   getAssociatedTokenAddressSync,
   TOKEN_PROGRAM_ID,
@@ -87,8 +88,14 @@ export class MeridianClient {
     return this.program.methods.setPaused(paused).accountsStrict({ admin, config: this.config }).instruction();
   }
 
+  /** Step 1 of the admin handover (the current admin proposes). */
   setAdmin(admin: PublicKey, newAdmin: PublicKey) {
     return this.program.methods.setAdmin(newAdmin).accountsStrict({ admin, config: this.config }).instruction();
+  }
+
+  /** Step 2: the proposed admin accepts. */
+  acceptAdmin(pendingAdmin: PublicKey) {
+    return this.program.methods.acceptAdmin().accountsStrict({ pendingAdmin, config: this.config }).instruction();
   }
 
   createStrikeMarket(admin: PublicKey, ticker: number, strikeMicro: bigint | number, closeTs: number, intraday = false) {
@@ -171,6 +178,35 @@ export class MeridianClient {
 
   claimFills(user: PublicKey, market: PublicKey) {
     return this.program.methods.claimFills().accountsStrict(this.tradeAccounts(user, market)).instruction();
+  }
+
+  /**
+   * Anyone can push a filled slot's proceeds to its owner's ATAs and free the slot.
+   * Includes idempotent ATA creation so an owner can't block it by closing accounts.
+   */
+  async crankClaim(payer: PublicKey, market: PublicKey, owner: PublicKey, seq: number | { toString(): string }): Promise<TransactionInstruction[]> {
+    const a = this.accounts(market);
+    return [
+      createAssociatedTokenAccountIdempotentInstruction(payer, ata(owner, this.usdcMint), owner, this.usdcMint),
+      createAssociatedTokenAccountIdempotentInstruction(payer, ata(owner, a.yesMint), owner, a.yesMint),
+      await this.program.methods
+        .crankClaim(new BN(seq.toString()))
+        .accountsStrict({
+          config: this.config,
+          market,
+          book: a.book,
+          bookUsdc: a.bookUsdc,
+          bookYes: a.bookYes,
+          owner,
+          ownerUsdc: ata(owner, this.usdcMint),
+          ownerYes: ata(owner, a.yesMint),
+          usdcMint: this.usdcMint,
+          yesMint: a.yesMint,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        })
+        .instruction(),
+    ];
   }
 
   settleMarket(market: PublicKey, priceUpdate: PublicKey) {

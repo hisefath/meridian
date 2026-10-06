@@ -8,7 +8,7 @@ import { Keypair, LAMPORTS_PER_SOL, SystemProgram, type PublicKey } from '@solan
 import { createAssociatedTokenAccountIdempotentInstruction, createMintToInstruction, getAccount } from '@solana/spl-token';
 import { FEED_IDS, MICRO, TICKERS, ata, intentInstructions, outcomeOf, type TradeIntent } from '@meridian/sdk';
 import { admin, chainNow, client, connection, env, explorer, loadKeypair, send, usdcMint } from '../automation/src/chain';
-import { deps, hermes, settings } from '../automation/src/deps';
+import { deps, hermes, settings, syncSettings } from '../automation/src/deps';
 import { settleTick, todaysClose } from '../automation/src/jobs';
 import { toMicro } from '../automation/src/hermes';
 
@@ -75,12 +75,13 @@ await tradeOnce('Buy NO ×4 (mint pair + sell YES @ 55 → NO costs 45¢)', { ac
 await tradeOnce('Sell NO ×1 (buy YES @ 60 + merge pair → +40¢)', { action: 'sellNo', qty: 1, price: 40, kind: 'market' });
 say(`- trader now holds ${await bal(ata(trader.publicKey, client.accounts(market).yesMint))} YES / ${await bal(ata(trader.publicKey, client.accounts(market).noMint))} NO`);
 
-say(`## 5. Wait for close (${minutes} min) — trading halts on-chain at close_ts`);
+say(`## 5. Wait for close (${minutes} min). Orders halted on-chain at close_ts − max_staleness; settlement opens at close_ts`);
 await waitUntilChain(close + 1);
 
 say('## 6. Settle');
 const cfg = await client.fetchConfig();
 if (hermes.hasKey) {
+  await syncSettings();
   await settleTick(deps, settings, new Map());
 } else {
   const until = close + cfg.overrideDelaySecs;

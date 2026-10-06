@@ -33,7 +33,7 @@ flowchart LR
 
   subgraph CHAIN["Solana devnet"]
     direction TB
-    PROG["<b>Meridian program</b> (Anchor/Rust)<br/>initialize_config · create_strike_market · add_strike<br/>mint_pair · place_order · cancel_order · claim_fills<br/>settle_market · admin_settle · redeem · redeem_pair · set_paused"]
+    PROG["<b>Meridian program</b> (Anchor/Rust)<br/>initialize_config · set_admin/accept_admin · set_paused<br/>create_strike_market · add_strike · mint_pair · redeem_pair<br/>place_order · cancel_order · claim_fills · crank_claim<br/>settle_market · admin_settle · redeem"]
     subgraph MKT["Per strike market (PDAs)"]
       M["Market<br/>strike · close_ts · outcome<br/>collateral accounting"]
       YM["YES mint"]
@@ -98,7 +98,7 @@ sequenceDiagram
     P-->>A: Market, YES/NO mints, vault, book, escrows
   end
 
-  Note over MM,T: 09:30–16:00 ET — trading
+  Note over MM,T: 09:30–15:59 ET — trading
   MM->>P: mint_pair(100) — vault += $100
   MM->>P: place_order(Ask YES @ 62¢ ×50, Limit)
   T->>P: place_order(Bid YES @ 62¢ ×10, IOC)  [Buy YES]
@@ -106,12 +106,13 @@ sequenceDiagram
   P-->>MM: claimable += $6.20
   T->>P: mint_pair(5) + place_order(Ask @ best bid, FOK)  [Buy NO, one tx]
 
-  Note over P: 16:00 ET — close_ts: mint + orders rejected on-chain
+  Note over P: 15:59 ET — close_ts − oracle window: orders rejected on-chain
+  Note over P: 16:00 ET — close_ts: minting stops, settlement opens
   A->>H: price update at close
   A->>R: post update (Full Wormhole verification)
   loop each strike of the ticker
     A->>P: settle_market(price_update)
-    P->>R: read PriceUpdateV2: feed id, |publish − close| ≤ 300s, conf ≤ 2%
+    P->>R: read PriceUpdateV2: feed id, |publish − close| ≤ window (60s devnet), conf ≤ 2%
     P-->>P: outcome = close ≥ strike ? YES : NO (immutable)
   end
   alt oracle fails for 15 min
@@ -166,7 +167,7 @@ Every amount is an integer. Prices are whole cents (1–99), quantities are whol
 2. `verification_level == Full` (all guardian signatures verified, not partial).
 3. `feed_id == config.feed_ids[market.ticker]`, so nobody can settle META with a TSLA price.
 4. `now ≥ close_ts` and the outcome is still `Open` (written once, immutable).
-5. Freshness: `|publish_time − close_ts| ≤ max_staleness_secs` (default 300s). The check is relative to the **close**, not to "now": we want the closing price even if settlement runs at 16:05.
+5. Freshness: `|publish_time − close_ts| ≤ max_staleness_secs` (60s on devnet; the brief suggests ≤ 5 min). Orders already halted at `close_ts − max_staleness_secs`, so no print in this window can be traded on. The check is relative to the **close**, not to "now": we want the closing price even if settlement runs at 16:05.
 6. Confidence: `conf × 10,000 ≤ max_conf_bps × price` (default 200 bps).
 7. `price_micro = floor(price × 10^(expo+6))`, then **YES wins iff `price_micro ≥ strike_micro`**. Flooring is exact for this comparison because strikes are integers.
 
@@ -182,7 +183,7 @@ If the oracle path keeps failing for 15 minutes, the settler alerts. After `clos
 | Bug or exploit discovered | Risk to funds | `set_paused(true)` blocks mint and new orders. Users can still cancel, claim and redeem |
 | Admin key compromise | Can pause, and can override-settle unsettled markets after the delay | Delay gives the oracle path first claim; prod = multisig + timelock (see `RISKS.md`) |
 | Someone donates USDC to a vault | Strict `==` checks would brick the market | Program checks `vault ≥ collateral` (solvency) and keeps exact internal accounting |
-| Order book full (64 slots) | New resting orders rejected (`BookFull`) | Takers still trade; documented capacity limit. Upgrade path: larger zero-copy book or eviction |
+| Order book full (64 slots) | New resting orders rejected (`BookFull`) | Filled-but-unclaimed slots are freed by anyone via `crank_claim` (the SDK does this automatically before quoting). Upgrade path: larger zero-copy book |
 
 ## 7. Assumptions (and what changes if they are wrong)
 

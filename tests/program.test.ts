@@ -1,6 +1,7 @@
 // Per-instruction unit tests against the compiled program (LiteSVM).
 import { describe, expect, it } from 'vitest';
 import { Keypair } from '@solana/web3.js';
+import { intentInstructions } from '../sdk/src';
 import { CLOSE, Harness, OPEN, USD } from './harness';
 
 describe('initialize_config / admin', () => {
@@ -20,13 +21,22 @@ describe('initialize_config / admin', () => {
     h.fails([await h.client.initializeConfig(h.admin.publicKey, { maxStalenessSecs: 300, maxConfBps: 200, overrideDelaySecs: 59 })], [h.admin], 'InvalidConfig');
   });
 
-  it('only the admin can pause, and admin can be handed over', async () => {
+  it('only the admin can pause; admin handover is two-step (propose, then accept)', async () => {
     const h = await Harness.ready();
     const eve = h.user();
     h.fails([await h.client.setPaused(eve.publicKey, true)], [eve], 'Unauthorized');
-    const next = Keypair.generate();
+    const next = h.user();
     h.send([await h.client.setAdmin(h.admin.publicKey, next.publicKey)], [h.admin]);
-    h.fails([await h.client.setPaused(h.admin.publicKey, true)], [h.admin], 'Unauthorized');
+    h.send([await h.client.setPaused(h.admin.publicKey, true)], [h.admin]); // old admin still in charge
+    h.fails([await h.client.acceptAdmin(eve.publicKey)], [eve], 'Unauthorized'); // only the proposed key can accept
+    h.send([await h.client.acceptAdmin(next.publicKey)], [next]);
+    h.fails([await h.client.setPaused(h.admin.publicKey, false)], [h.admin], 'Unauthorized');
+    h.send([await h.client.setPaused(next.publicKey, false)], [next]);
+  });
+
+  it('rejects an override delay that does not exceed the oracle window', async () => {
+    const h = new Harness();
+    h.fails([await h.client.initializeConfig(h.admin.publicKey, { maxStalenessSecs: 300, maxConfBps: 200, overrideDelaySecs: 300 })], [h.admin], 'InvalidConfig');
   });
 });
 
@@ -180,6 +190,45 @@ describe('place_order / cancel_order / claim_fills', () => {
 
     h.setTime(CLOSE);
     h.fails([await h.client.placeOrder(taker.publicKey, m, 'bid', 60, 1, 'ioc')], [taker], 'MarketClosed');
+  });
+
+  it('book stops taking orders max_staleness before close (no trading on public settlement prints)', async () => {
+    const { h, m, taker, maker } = await setup();
+    h.send([await h.client.placeOrder(maker.publicKey, m, 'ask', 60, 5, 'limit')], [maker]);
+    h.setTime(CLOSE - 301);
+    h.send([await h.client.placeOrder(taker.publicKey, m, 'bid', 60, 1, 'ioc')], [taker]);
+    h.setTime(CLOSE - 300);
+    h.fails([await h.client.placeOrder(taker.publicKey, m, 'bid', 60, 1, 'ioc')], [taker], 'MarketClosed');
+    // exits still work inside the quiet window
+    h.send([await h.client.claimFills(maker.publicKey, m)], [maker]);
+  });
+
+  it('griefing fix: 64 filled-but-unclaimed slots can be cranked by anyone, paying the owner', async () => {
+    const { h, m, maker, taker } = await setup();
+    const griefer = h.user(10, [m]);
+    h.send([await h.client.mintPair(griefer.publicKey, m, 1)], [griefer]);
+    // the attack from review: rest 1 YES @1¢ then hit it yourself → slot left with qty 0, claimable 1¢
+    for (let i = 0; i < 64; i++) {
+      h.send(
+        [await h.client.placeOrder(griefer.publicKey, m, 'ask', 1, 1, 'limit'), await h.client.placeOrder(griefer.publicKey, m, 'bid', 1, 1, 'ioc')],
+        [griefer],
+      );
+    }
+    const dead = h.book(m).orders.filter((o: any) => Number(o.qty) === 0 && Number(o.claimable) > 0);
+    expect(dead).toHaveLength(64);
+    h.fails([await h.client.placeOrder(maker.publicKey, m, 'ask', 60, 5, 'limit')], [maker], 'BookFull');
+
+    // griefer closes nothing useful: crank recreates ATAs if needed; any maker cranks then quotes in ONE tx
+    const usdcBefore = h.usdc(griefer.publicKey);
+    const intent = await intentInstructions(h.client, maker.publicKey, m, { action: 'sellYes', qty: 5, price: 60, kind: 'limit' }, h.book(m).orders);
+    h.send(intent, [maker]);
+    expect(h.usdc(griefer.publicKey) - usdcBefore).toBe(10_000); // the griefer's 1¢ went back to the griefer
+    expect(h.book(m).orders.some((o: any) => o.owner.equals(maker.publicKey) && Number(o.qty) === 5)).toBe(true);
+
+    // a random cranker can't redirect funds: proceeds always go to the slot owner's ATA
+    const seq = h.book(m).orders.find((o: any) => Number(o.claimable) > 0)!.seq;
+    h.fails(await h.client.crankClaim(taker.publicKey, m, taker.publicKey, seq), [taker], 'OrderNotFound');
+    h.send(await h.client.crankClaim(taker.publicKey, m, griefer.publicKey, seq), [taker]);
   });
 
   it('book holds 64 resting orders, then rejects with BookFull', async () => {

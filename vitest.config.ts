@@ -6,6 +6,7 @@ export default defineConfig({
   test: {
     include: ['sdk/**/*.test.ts', 'tests/**/*.test.ts', 'automation/**/*.test.ts'],
     pool: 'forks', // litesvm is a native addon
+    fileParallelism: false, // parallel LiteSVM instances hit std::bad_alloc on Linux CI runners
     testTimeout: 60_000,
   },
 });

@@ -1,5 +1,6 @@
 import type { PublicKey, TransactionInstruction } from '@solana/web3.js';
 import type { MeridianClient } from './client';
+import type { OrderSlot } from './book';
 
 export type Action = 'buyYes' | 'sellYes' | 'buyNo' | 'sellNo';
 
@@ -55,10 +56,17 @@ export async function intentInstructions(
   user: PublicKey,
   market: PublicKey,
   intent: TradeIntent,
+  orders?: OrderSlot[],
 ): Promise<TransactionInstruction[]> {
   const kind = intent.kind === 'market' ? 'fok' : 'limit';
   const p = yesPrice(intent);
   const ixs = client.ensureTokenAccounts(user, user, market);
+  // A limit order may need to rest: if every slot is taken, free a filled-but-unclaimed one first.
+  if (kind === 'limit' && orders) {
+    const free = orders.some((o) => Number(o.qty.toString()) === 0 && Number(o.claimable.toString()) === 0);
+    const dead = orders.find((o) => Number(o.qty.toString()) === 0 && Number(o.claimable.toString()) > 0);
+    if (!free && dead) ixs.push(...(await client.crankClaim(user, market, dead.owner, dead.seq)));
+  }
   switch (intent.action) {
     case 'buyYes':
       ixs.push(await client.placeOrder(user, market, 'bid', p, intent.qty, kind));

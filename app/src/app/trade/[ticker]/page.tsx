@@ -8,13 +8,14 @@ import { Countdown } from '@/components/Countdown';
 import { OrderBook } from '@/components/OrderBook';
 import { TradePanel } from '@/components/TradePanel';
 import { TxStatus } from '@/components/TxStatus';
-import { USDC_MINT, useBalances, useBook, useBooks, useClient, useMarkets, usePrices, useRefresh, useSend } from '@/lib/meridian';
+import { USDC_MINT, useBalances, useBook, useBooks, useClient, useConfig, useMarkets, usePrices, useRefresh, useSend } from '@/lib/meridian';
 
 const LABEL = { buyYes: 'Buy YES', sellYes: 'Sell YES', buyNo: 'Buy NO', sellNo: 'Sell NO' } as const;
 
 export default function Trade() {
   const ticker = useParams<{ ticker: string }>().ticker.toUpperCase() as Ticker;
   const client = useClient();
+  const cfg = useConfig();
   const { publicKey } = useWallet();
   const [refresh, bump] = useRefresh();
   const { markets } = useMarkets(refresh);
@@ -48,7 +49,8 @@ export default function Trade() {
     usdc: (balances.get(USDC_MINT.toBase58()) ?? 0) / 1e6,
   };
   const now = Math.floor(Date.now() / 1000);
-  const tradingOpen = !!market && market.outcome === 'open' && now < market.closeTs;
+  const haltTs = market ? market.closeTs - (cfg?.maxStalenessSecs ?? 0) : 0;
+  const tradingOpen = !!market && market.outcome === 'open' && now < haltTs && !cfg?.paused;
   const myOrders = orders && publicKey ? ordersOf(orders, publicKey) : [];
   const claim = orders && publicKey ? claimableOf(orders, publicKey) : { yes: 0, usdc: 0 };
   const p = prices[ticker];
@@ -61,7 +63,7 @@ export default function Trade() {
         <span className="text-xs text-gray-500">Pyth oracle</span>
         {market && (
           <span className="ml-auto text-sm text-gray-300">
-            <Countdown closeTs={market.closeTs} outcome={market.outcome} />
+            <Countdown closeTs={market.closeTs} outcome={market.outcome} haltTs={haltTs} />
           </span>
         )}
       </header>
@@ -128,10 +130,10 @@ export default function Trade() {
               holdings={holdings}
               connected={!!publicKey}
               tradingOpen={tradingOpen}
-              onSubmit={async (intent) => send(await intentInstructions(client, publicKey!, market.pubkey, intent), LABEL[intent.action])}
+              onSubmit={async (intent) => send(await intentInstructions(client, publicKey!, market.pubkey, intent, orders ?? undefined), LABEL[intent.action])}
             />
           )}
-          {market && publicKey && tradingOpen && (
+          {market && publicKey && market.outcome === 'open' && now < market.closeTs && (
             <section aria-label="Market maker" className="rounded-lg border border-line bg-panel p-3 text-sm">
               <h3 className="font-semibold">Mint pairs (market makers)</h3>
               <p className="mt-1 text-xs text-gray-400">Deposit $1 USDC per pair and receive 1 YES + 1 NO. Then quote YES with limit orders.</p>
