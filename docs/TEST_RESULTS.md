@@ -1,6 +1,6 @@
 # Test Results
 
-All suites run locally with `make test`, which needs only Docker and Node. The counts below are from the run on **2026-10-06**.
+All suites run locally with `make test`, which needs only Docker and Node, and on every push in [GitHub Actions](https://github.com/hisefath/meridian/actions/workflows/ci.yml) (arm64 runners: SBPF build + Rust tests → type-check → LiteSVM/automation → frontend). The counts below are from **2026-10-06** and were green in both places.
 
 | Suite | Runner | Tests | Result |
 |---|---|---|---|

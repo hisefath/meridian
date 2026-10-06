@@ -1,5 +1,7 @@
 # Meridian: Binary Stock Outcome Markets on Solana
 
+[![ci](https://github.com/hisefath/meridian/actions/workflows/ci.yml/badge.svg)](https://github.com/hisefath/meridian/actions/workflows/ci.yml)
+
 Non-custodial, same-day (0DTE) binary contracts on the closing prices of the MAG7 stocks (AAPL, MSFT, GOOGL, AMZN, NVDA, META, TSLA).
 
 > **"Will META close at or above $680 today?"** A YES token pays **$1.00 USDC** if it does. A NO token pays $1.00 if it doesn't. **YES + NO = $1, always.**
@@ -81,9 +83,9 @@ docs/                PRD, system design (+ .mmd sources), architecture, deployme
 - **Collateral invariant enforced on-chain** after every mint/redeem: `vault ≥ collateral ≥ supply × $1`. The tests assert exact equality.
 
 ## Status
-- **89 automated tests passing**: Rust unit/property, LiteSVM integration (every instruction, 4 trade paths, multi-user lifecycle, randomized invariants, compute budget), automation, and frontend UI flows. See [TEST_RESULTS.md](docs/TEST_RESULTS.md).
+- **92 automated tests passing** locally and in [CI](https://github.com/hisefath/meridian/actions/workflows/ci.yml): Rust unit/property, LiteSVM integration (every instruction, 4 trade paths, multi-user lifecycle, randomized invariants, compute budget), automation, and frontend UI flows. See [TEST_RESULTS.md](docs/TEST_RESULTS.md).
 - **Live-network verified** on a local Solana network (Surfpool): scripted lifecycle (vault ends at 0, USDC conserved) and a browser end-to-end run of all flows with a wallet.
 - **Devnet:** deploy scripts are ready (`make deploy-devnet setup-devnet lifecycle-devnet`). The run log will be committed as `docs/devnet-lifecycle-run.md`.
-- Program: 330 KB, worst-case taker sweep 49.9k CU.
+- Program: 345 KB, worst-case taker sweep 49.9k CU. An independent security review's findings (book griefing, pre-close trading on public prints, admin handover) are fixed and each has a test that reproduces the exploit.
 
 This is a devnet prototype: test funds only, no regulatory claims. Known limitations are in [RISKS.md](RISKS.md).
