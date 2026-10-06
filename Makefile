@@ -9,7 +9,7 @@ NODE = docker run --rm --env-file $(ENV_FILE) -v "$(CURDIR)/keys":/app/keys:ro -
 .PHONY: localnet localnet-deploy localnet-demo dev install toolchain build test test-rust test-ts deploy-devnet setup-devnet lifecycle-devnet automation-image automation demo-market
 
 dev: install            ## one command: run the trading app against devnet on http://localhost:3000
-	npm run dev -w app
+	@set -a; [ -f .env ] && . ./.env; set +a; npm run dev -w app
 
 install:
 	npm install
@@ -73,4 +73,4 @@ localnet-demo: automation-image     ## morning job + MM quotes + lifecycle run, 
 	$(LOCAL) npx tsx scripts/lifecycle.ts
 
 dev-localnet:           ## app against Surfpool with the dev-only burner wallet
-	NEXT_PUBLIC_RPC_URL=http://localhost:8899 NEXT_PUBLIC_ENABLE_BURNER=true FAUCET_KEYPAIR=keys/admin.json npm run dev -w app
+	@set -a; [ -f .env.localnet ] && . ./.env.localnet; set +a; NEXT_PUBLIC_RPC_URL=http://localhost:8899 NEXT_PUBLIC_ENABLE_BURNER=true FAUCET_KEYPAIR=keys/admin.json npm run dev -w app

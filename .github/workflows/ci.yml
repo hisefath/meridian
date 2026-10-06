@@ -1,0 +1,45 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  program:
+    name: program (build SBPF v0 + Rust tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain image (rust 1.90 + cargo-build-sbf 4.4)
+        run: docker build -f docker/toolchain.Dockerfile -t meridian-toolchain docker
+      - name: Build program and run unit/property tests
+        run: |
+          mkdir -p target/deploy
+          docker run --rm -v "$PWD":/workspace meridian-toolchain sh -c '
+            cargo build-sbf --arch v0 --manifest-path programs/meridian/Cargo.toml --sbf-out-dir target/deploy &&
+            cargo test -p meridian --lib'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: meridian-so
+          path: target/deploy/meridian.so
+
+  typescript:
+    name: typecheck + LiteSVM integration + automation + frontend
+    needs: program
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/download-artifact@v4
+        with:
+          name: meridian-so
+          path: target/deploy
+      - run: npm ci
+      - run: npm run typecheck
+      - name: SDK, automation, LiteSVM integration, compute budget
+        run: npx vitest run
+      - name: Frontend UI-flow tests
+        run: npm test -w app

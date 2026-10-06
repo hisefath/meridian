@@ -19,6 +19,8 @@ make dev          # npm install + Next.js on http://localhost:3000 against devne
 ```
 Then connect Phantom or Solflare (set to devnet), click **Get test USDC**, and trade.
 
+No devnet SOL? Run the whole stack locally on [Surfpool](https://github.com/txtx/surfpool): `make localnet`, `make localnet-deploy localnet-demo`, `make dev-localnet` (see [DEPLOYMENT.md §9](docs/DEPLOYMENT.md)).
+
 Full build, test and deploy (needs only Docker + Node 22, no local Rust/Solana install):
 ```bash
 cp .env.example .env     # add PYTH_API_KEY for oracle settlement + live prices
@@ -79,4 +81,9 @@ docs/                PRD, system design (+ .mmd sources), architecture, deployme
 - **Collateral invariant enforced on-chain** after every mint/redeem: `vault ≥ collateral ≥ supply × $1`. The tests assert exact equality.
 
 ## Status
-See [docs/TEST_RESULTS.md](docs/TEST_RESULTS.md) for current test counts and the devnet run log, and [RISKS.md](RISKS.md) for known limitations. This is a devnet prototype: test funds only, no regulatory claims.
+- **89 automated tests passing**: Rust unit/property, LiteSVM integration (every instruction, 4 trade paths, multi-user lifecycle, randomized invariants, compute budget), automation, and frontend UI flows. See [TEST_RESULTS.md](docs/TEST_RESULTS.md).
+- **Live-network verified** on a local Solana network (Surfpool): scripted lifecycle (vault ends at 0, USDC conserved) and a browser end-to-end run of all flows with a wallet.
+- **Devnet:** deploy scripts are ready (`make deploy-devnet setup-devnet lifecycle-devnet`). The run log will be committed as `docs/devnet-lifecycle-run.md`.
+- Program: 330 KB, worst-case taker sweep 49.9k CU.
+
+This is a devnet prototype: test funds only, no regulatory claims. Known limitations are in [RISKS.md](RISKS.md).
