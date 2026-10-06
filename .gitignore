@@ -32,3 +32,4 @@ keys/
 app/AGENTS.md
 app/CLAUDE.md
 .env.localnet
+!.env.localnet.example

@@ -11,6 +11,7 @@ This document explains *why* the system looks the way it does. The *what* is in 
 3. **Liveness without trust.** Settlement is permissionless and oracle-validated. If our server dies at 3:59 PM, anyone can settle at 4:00. The admin override exists, but it is delayed so that the oracle path always gets first claim.
 4. **Users can always exit.** Pause stops new risk (mint, new orders). It never blocks cancel, claim, redeem or settle.
 5. **Few moving parts.** No indexer, no database and no message queue. The chain is the database. The automation is stateless and re-derives what to do from on-chain state every tick.
+6. **The chain's clock is the only clock.** The program enforces the close, the settlement window and the override delay against `Clock::unix_timestamp`, so the automation and scripts decide using `getBlockTime` too, never the host clock. In development Docker's VM clock ran 9 minutes fast and the local validator lagged by about 20s. Wall-clock logic would have sent transactions the program correctly rejected.
 
 ---
 
@@ -115,7 +116,8 @@ One token is one contract, so payouts are `count × 1,000,000` µUSDC with no fr
 ### 3.9 Testing: LiteSVM + property tests, not `solana-test-validator`
 - **Pure Rust unit and property tests** (`cargo test` + `proptest`) cover the matching engine, payout math and price normalisation. They run in milliseconds over thousands of random cases.
 - **LiteSVM** runs the compiled `.so` in-process from TypeScript. It can **warp the clock** (to test the override delay and the close halt) and **inject Pyth `PriceUpdateV2` accounts** (stale, wide-confidence, wrong-feed, partial-verification). That is not possible against devnet and is slow on a local validator. The tests use the same `sdk/` instruction builders as the app.
-- **Devnet lifecycle script** proves the real deployment end to end.
+- **Live-network run** (`scripts/lifecycle.ts`) against [Surfpool](https://github.com/txtx/surfpool), a LiteSVM-backed local validator with real RPC and WebSocket, and against devnet. It exercises the exact transactions, RPC behaviour and clocks the product sees. It caught four bugs that the in-process tests could not see (ESM interop, a dependency conflict, clock skew, a server-only env default).
+- **Browser end-to-end:** the Next.js app against Surfpool with a dev-only burner wallet. All four trade paths, the position constraint, P&L, history, and settle → redeem.
 
 ### 3.10 Automation: state-driven loop, not cron-at-4:05
 The settler wakes every 30s and settles any `Open` market with `close_ts ≤ now`. That handles early-close days (13:00) and restarts after crashes, and it is naturally idempotent. A cron firing "at 16:05" would need a holiday calendar, would miss early closes, and would silently skip a day if the process was down at that minute. The morning job does use a clock (08:00 ET), but it is idempotent and reads the trading calendar from Pyth's market-hours metadata instead of a hard-coded holiday list.
@@ -128,6 +130,8 @@ The settler wakes every 30s and settles any `Open` market with `close_ts ≤ now
 | `@coral-xyz/anchor` (TS) | IDL-typed instruction builders | Hand-encoding Borsh |
 | `@solana/web3.js` v1, `@solana/spl-token` | Anchor's TS client is built on v1 | `@solana/kit`: not supported by Anchor 0.32 |
 | `litesvm` 0.8 (dev) | In-process SVM for fast, deterministic tests | `solana-test-validator`: slow, no clock warp |
+| `cargo-build-sbf` 4.4 (build) | Compiles the program (`--arch v0`) | The 8.8 GB amd64 `solanafoundation/anchor` image: emulated on Apple Silicon, slow, linker segfaults |
+| `@solana/wallet-adapter-unsafe-burner` (dev flag only) | Wallet for local browser E2E | — (never enabled on a real cluster) |
 | `@pythnetwork/pyth-solana-receiver` (automation) | Posting/verifying Wormhole VAAs is multi-transaction and non-trivial | Re-implementing guardian verification |
 | Next.js, React, `@solana/wallet-adapter-*` | The brief's stack; Wallet Standard auto-detects wallets | — |
 | Vitest + Testing Library (dev) | Fast TS-native UI tests | Jest: slower with ESM/TS config |

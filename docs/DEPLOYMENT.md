@@ -1,6 +1,6 @@
 # Deployment Guide
 
-Everything runs from the repo root with **Docker** and **Node 22+**. No local Rust or Solana toolchain is needed. The program toolchain image (`docker/toolchain.Dockerfile`) compiles `cargo-build-sbf` and `anchor-cli` natively for your CPU, so Apple Silicon builds don't run under x86 emulation.
+Everything runs from the repo root with **Docker** and **Node 22+**. No local Rust or Solana toolchain is needed. The program toolchain image (`docker/toolchain.Dockerfile`, about 1 GB) compiles `cargo-build-sbf` natively for your CPU, so Apple Silicon builds don't run under x86 emulation. Programs are built for **SBPF v0** (`--arch v0`), which mainnet, devnet and LiteSVM all accept. The IDL comes from `scripts/gen_idl.py`, and the LiteSVM suite checks it against the binary. If you have Anchor 0.32 installed, `anchor build` works too.
 
 ## 0. Prerequisites
 | Need | Why |
@@ -15,19 +15,19 @@ Everything runs from the repo root with **Docker** and **Node 22+**. No local Ru
 cp .env.example .env          # then edit: PYTH_API_KEY, keys, RPC
 ```
 Keys live in `keys/` (gitignored). The repo expects:
-- `keys/meridian-program.json`, the program id keypair. Generate a new one for your own deployment, then run `anchor keys sync` inside the toolchain image (see §6).
+- `keys/meridian-program.json`, the program id keypair. Generate a new one for your own deployment (see §8).
 - `keys/admin.json` is the upgrade authority, the config admin and the automation signer. It is also the test-USDC mint authority.
 - `keys/usdc-mint.json` is the test-USDC mint address. `keys/mm.json` and `keys/trader.json` are the demo users for the lifecycle script.
 
 ```bash
 # generate any missing keypair with the toolchain image
-docker run --rm -v "$PWD/keys":/keys meridian-toolchain solana-keygen new -s --no-bip39-passphrase -o /keys/admin.json
+docker run --rm --platform linux/amd64 -v "$PWD/keys":/keys meridian-solana solana-keygen new -s --no-bip39-passphrase -o /keys/admin.json
 ```
 
 ## 2. Build
 ```bash
-make toolchain     # one-time: builds the meridian-toolchain image (~10 min)
-make build         # anchor build → target/deploy/meridian.so + IDL, copies the IDL into sdk/
+make toolchain     # one-time: program toolchain + Solana CLI images (~5 min)
+make build         # cargo build-sbf --arch v0 → target/deploy/meridian.so, IDL → sdk/src/idl/
 ```
 
 ## 3. Test
@@ -37,6 +37,7 @@ make test          # cargo unit/property tests + LiteSVM integration + automatio
 
 ## 4. Deploy to devnet
 ```bash
+make airdrop           # or fund keys/admin.json at https://faucet.solana.com (~5 SOL)
 make deploy-devnet     # solana program deploy --program-id keys/meridian-program.json (admin = upgrade authority)
 make setup-devnet      # creates the test-USDC mint and initializes Config (idempotent)
 ```
@@ -75,11 +76,24 @@ Production build: `npm run build -w app && npm start -w app` (or deploy `app/` t
 
 ## 8. Redeploying under your own program id
 ```bash
-docker run --rm -v "$PWD/keys":/keys meridian-toolchain solana-keygen new -s --no-bip39-passphrase -o /keys/meridian-program.json
+docker run --rm --platform linux/amd64 -v "$PWD/keys":/keys meridian-solana solana-keygen new -s --no-bip39-passphrase -o /keys/meridian-program.json
 # put the new pubkey in programs/meridian/src/lib.rs (declare_id!) and Anchor.toml, then:
 make build deploy-devnet setup-devnet
 ```
 The SDK reads the program id from the regenerated IDL, so the frontend and automation pick it up with no code change.
+
+## 9. Local network (no devnet SOL needed)
+[Surfpool](https://github.com/txtx/surfpool) is a LiteSVM-based local Solana network with a real RPC and WebSocket API. Install the binary for your OS, then:
+```bash
+cp .env.localnet.example .env.localnet
+make localnet          # terminal 1: Surfpool on :8899, admin/MM/trader prefunded
+make localnet-deploy   # program + test-USDC mint + config (override delay 60s for quick demos)
+make localnet-demo     # morning job (45 markets), MM quotes, full scripted lifecycle
+make dev-localnet      # app on :3000 with a dev-only burner wallet (never enable on a real cluster)
+```
+`solana-test-validator` also works on x86 hosts. Under Docker's x86 emulation on Apple Silicon it refuses to start ("missing AVX support"), which is why Surfpool is the default here.
+
+**Clock note:** every automation decision uses the chain clock (`getBlockTime`), not the host or container clock. On this machine Docker's VM ran 9 minutes fast and Surfpool's clock lagged by about 20s. The program trusts only `Clock::unix_timestamp`, so the automation does too.
 
 ## Mainnet checklist (not done; out of scope for the brief)
 Audit · multisig admin and upgrade authority · `USDC_MINT` = Circle USDC · dedicated RPC · paid Pyth plan · alerting to on-call · `max_staleness_secs` ≤ 30 · `close_book` rent reclaim · indexer for history.
