@@ -1,0 +1,4 @@
+# cargo-build-sbf compiles with platform-tools' Rust 1.84; resolve dependency
+# versions that still support it (edition-2024 crates would fail to parse).
+[resolver]
+incompatible-rust-versions = "fallback"

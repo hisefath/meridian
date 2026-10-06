@@ -1,0 +1,7 @@
+**/node_modules
+target
+.anchor
+app/.next
+keys
+.env
+.git

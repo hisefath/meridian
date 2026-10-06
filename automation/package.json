@@ -1,0 +1,21 @@
+{
+  "name": "@meridian/automation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts run",
+    "morning": "tsx src/index.ts morning",
+    "settle": "tsx src/index.ts settle",
+    "override": "tsx src/index.ts override",
+    "setup": "tsx ../scripts/setup-devnet.ts"
+  },
+  "dependencies": {
+    "@meridian/sdk": "*",
+    "@pythnetwork/pyth-solana-receiver": "^0.16.0",
+    "@coral-xyz/anchor": "0.32.1",
+    "@solana/web3.js": "^1.98.4",
+    "tsx": "^4.20.0",
+    "@solana/spl-token": "^0.4.13"
+  }
+}

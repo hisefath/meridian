@@ -1,0 +1,33 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-yes: #10b981;
+  --color-yes-soft: #064e3b;
+  --color-no: #f43f5e;
+  --color-no-soft: #4c0519;
+  --color-panel: #111827;
+  --color-line: #1f2937;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+body {
+  background: #0b0f17;
+  color: #e5e7eb;
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
+}
+
+.wallet-adapter-button-trigger {
+  height: 2.25rem !important;
+  font-size: 0.875rem !important;
+  border-radius: 0.5rem !important;
+}
