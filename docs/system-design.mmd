@@ -1,0 +1,61 @@
+%% Meridian — system design (Mermaid source).
+%% Rendered inline in docs/SYSTEM_DESIGN.md; paste into https://mermaid.live to edit.
+flowchart LR
+
+  subgraph USERS["Users"]
+    TR["<b>Trader</b><br/>Phantom / Solflare<br/>(Wallet Standard)"]
+    MM["<b>Market maker</b><br/>mints pairs, quotes YES"]
+    ADM["<b>Admin</b><br/>pause · override settle<br/>(multisig in prod)"]
+  end
+
+  subgraph WEB["Frontend — Next.js (TypeScript)"]
+    UI["<b>Pages</b><br/>Landing · Markets · Trade<br/>Portfolio · History"]
+    INTENT["<b>Intent → instructions</b><br/>Buy NO = mint_pair + sell YES<br/>Sell NO = buy YES + redeem_pair<br/><i>one tx, one signature</i>"]
+    FAUCET["/api/faucet<br/>test USDC (devnet only)"]
+    PX["/api/prices<br/>Hermes proxy<br/>(keeps API key server-side)"]
+  end
+
+  subgraph SDK["@meridian/sdk (shared TS)"]
+    S1["PDAs · IDL client<br/>book decoder · strike calc<br/>P&L ledger"]
+  end
+
+  subgraph AUTO["Automation service — Node/TS (Docker)"]
+    MORN["<b>Morning job</b> 08:00 ET<br/>trading day? (Pyth market hours)<br/>prev close → strikes ±3/6/9% → $10<br/>create_strike_market × N<br/>idempotent · backoff · alert"]
+    SETL["<b>Settler loop</b> every 30s<br/>open markets with close_ts ≤ now<br/>post Pyth update (1 per ticker)<br/>settle_market × strikes<br/>retry 15 min → alert → override"]
+  end
+
+  subgraph CHAIN["Solana devnet"]
+    direction TB
+    PROG["<b>Meridian program</b> (Anchor/Rust)<br/>initialize_config · create_strike_market · add_strike<br/>mint_pair · place_order · cancel_order · claim_fills<br/>settle_market · admin_settle · redeem · redeem_pair · set_paused"]
+    subgraph MKT["Per strike market (PDAs)"]
+      M["Market<br/>strike · close_ts · outcome<br/>collateral accounting"]
+      YM["YES mint"]
+      NM["NO mint"]
+      V[("Vault<br/>USDC = $1 × pairs")]
+      BK["OrderBook (zero-copy)<br/>64 slots · price-time"]
+      BE[("Book escrow<br/>USDC + YES")]
+    end
+    CFG["Config<br/>admin · usdc_mint · tickers<br/>feed ids · thresholds · paused"]
+    PR["Pyth Receiver<br/>PriceUpdateV2 accounts"]
+  end
+
+  HERMES[("Pyth Hermes<br/>signed price updates<br/>(API key)")]
+
+  TR --> UI
+  MM --> UI
+  UI --> INTENT --> S1
+  S1 -- "sign + send" --> PROG
+  UI -- "WebSocket: book, balances" --> BK
+  UI --> PX --> HERMES
+  UI --> FAUCET
+  ADM -- "CLI" --> PROG
+  MORN --> S1
+  SETL --> S1
+  MORN -- "prev close" --> HERMES
+  SETL -- "close update" --> HERMES
+  SETL -- "post VAA" --> PR
+  PROG --> CFG
+  PROG --> M
+  M --- YM & NM & V & BK
+  BK --- BE
+  PROG -- "read on-chain at settle" --> PR

@@ -1,0 +1,27 @@
+# private decision journal (kept locally only)
+DECISIONS.md
+
+# rust / anchor
+target/
+.anchor/
+test-ledger/
+**/*.rs.bk
+
+# node
+node_modules/
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# secrets
+.env
+.env.*
+!.env.example
+*.keypair.json
+keys/
+!keys/.gitkeep
+
+.DS_Store

@@ -1,0 +1,14 @@
+%% Meridian — one book, four user actions (Mermaid source).
+flowchart TB
+  subgraph BOOK["One order book per strike: YES vs USDC"]
+    BID["Bid side<br/>(buyers of YES)"]
+    ASK["Ask side<br/>(sellers of YES)"]
+  end
+
+  BY["<b>Buy YES</b><br/>place_order(Bid)"] -- "takes" --> ASK
+  SN["<b>Sell NO</b><br/>place_order(Bid) + redeem_pair<br/><i>YES+NO → $1, atomic</i>"] -- "takes" --> ASK
+  SY["<b>Sell YES</b><br/>place_order(Ask)"] -- "takes" --> BID
+  BN["<b>Buy NO</b><br/>mint_pair + place_order(Ask)<br/><i>keeps NO, atomic</i>"] -- "takes" --> BID
+
+  NOVIEW["NO view of the same book<br/>NO ask = 100¢ − best YES bid<br/>NO bid = 100¢ − best YES ask"]
+  BOOK -.-> NOVIEW

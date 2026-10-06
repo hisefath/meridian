@@ -1,0 +1,42 @@
+%% Meridian — one trading day, end to end (Mermaid source).
+sequenceDiagram
+  autonumber
+  participant A as Automation
+  participant H as Pyth Hermes
+  participant P as Meridian program
+  participant R as Pyth Receiver
+  participant MM as Market maker
+  participant T as Trader
+
+  Note over A: 08:00 ET — trading day? (Pyth market-hours calendar)
+  A->>H: latest price (prev session close)
+  A->>A: strikes = round10(prev × {0.91..1.09}), dedupe
+  loop each strike (idempotent: skip existing PDA)
+    A->>P: create_strike_market(ticker, strike, close_ts)
+    P-->>A: Market, YES/NO mints, vault, book, escrows
+  end
+
+  Note over MM,T: 09:30–16:00 ET — trading
+  MM->>P: mint_pair(100) — vault += $100
+  MM->>P: place_order(Ask YES @ 62¢ ×50, Limit)
+  T->>P: place_order(Bid YES @ 62¢ ×10, IOC)  [Buy YES]
+  P-->>T: 10 YES (escrow → wallet)
+  P-->>MM: claimable += $6.20
+  T->>P: mint_pair(5) + place_order(Ask @ best bid, FOK)  [Buy NO, one tx]
+
+  Note over P: 16:00 ET — close_ts: mint + orders rejected on-chain
+  A->>H: price update at close
+  A->>R: post update (Full Wormhole verification)
+  loop each strike of the ticker
+    A->>P: settle_market(price_update)
+    P->>R: read PriceUpdateV2: feed id, |publish − close| ≤ 300s, conf ≤ 2%
+    P-->>P: outcome = close ≥ strike ? YES : NO (immutable)
+  end
+  alt oracle fails for 15 min
+    A-->>A: alert admin (webhook)
+    Note over P: ≥ close + 1h
+    A->>P: admin_settle(price) [admin key, manual price]
+  end
+
+  T->>P: redeem() — burn YES+NO, receive $1 × winning
+  MM->>P: claim_fills() + cancel_order() + redeem()
