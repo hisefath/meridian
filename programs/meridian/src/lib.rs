@@ -21,7 +21,6 @@ macro_rules! market_seeds {
         ]
     };
 }
-use market_seeds;
 
 declare_id!("2rnq72LPCH1aAGKvJrFU6YWAy6XCQh2ERofPhuqA7YCG");
 

@@ -30,7 +30,7 @@ describe('four trade paths on one book', () => {
 
     await trade(h, user, m, { action: 'sellYes', qty: 10, price: 55, kind: 'market' });
     expect(h.yes(user.publicKey, m)).toBe(0);
-    expect(h.usdc(user.publicKey)).toBe((1_000 - 6.2 + 5.8) * USD); // round trip costs the 4¢ spread
+    expect(h.usdc(user.publicKey)).toBe(1_000 * USD - 6_200_000 + 5_800_000); // round trip costs the 4¢ spread
   });
 
   it('Buy NO = mint pair + sell YES at the bid, atomically, one signature', async () => {
@@ -54,7 +54,7 @@ describe('four trade paths on one book', () => {
     // NO bid = 100 − best YES ask (62) = 38¢
     await trade(h, user, m, { action: 'sellNo', qty: 10, price: 35, kind: 'market' });
     expect([h.yes(user.publicKey, m), h.no(user.publicKey, m)]).toEqual([0, 0]);
-    expect(h.usdc(user.publicKey)).toBe((1_000 - 4.2 + 3.8) * USD);
+    expect(h.usdc(user.publicKey)).toBe(1_000 * USD - 4_200_000 + 3_800_000);
   });
 
   it('Buy NO limit rests a YES ask; the user holds both until it fills', async () => {

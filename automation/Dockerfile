@@ -6,7 +6,7 @@ COPY package.json package-lock.json ./
 COPY sdk/package.json sdk/
 COPY automation/package.json automation/
 COPY app/package.json app/
-RUN npm ci --workspace @meridian/automation --workspace @meridian/sdk --no-audit --no-fund
+RUN npm ci --omit=dev --no-audit --no-fund
 COPY sdk sdk
 COPY automation automation
 COPY scripts scripts

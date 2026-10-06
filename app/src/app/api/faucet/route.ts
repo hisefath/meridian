@@ -11,7 +11,7 @@ function faucetKey(): Keypair | null {
   const v = process.env.FAUCET_KEYPAIR;
   if (!v) return null;
   if (v.trim().startsWith('[')) return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(v)));
-  const file = [v, path.resolve(process.cwd(), '..', v)].find(existsSync);
+  const file = [v, path.resolve(/*turbopackIgnore: true*/ process.cwd(), '..', v)].find(existsSync);
   return file ? Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(file, 'utf8')))) : null;
 }
 

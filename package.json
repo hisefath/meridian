@@ -11,12 +11,21 @@
     "test": "vitest run",
     "test:sdk": "vitest run sdk",
     "test:integration": "vitest run tests",
-    "typecheck": "tsc -p sdk --noEmit && tsc -p automation --noEmit"
+    "typecheck": "tsc -p sdk && tsc -p automation && tsc -p . && tsc -p app --noEmit"
   },
   "devDependencies": {
     "litesvm": "0.8.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",
-    "vitest": "^3.2.0"
+    "vitest": "^3.2.0",
+    "@types/node": "^24.0.0"
+  },
+  "overrides": {
+    "jito-ts": {
+      "@solana/web3.js": "$@solana/web3.js"
+    }
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.99.0"
   }
 }

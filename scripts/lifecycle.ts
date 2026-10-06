@@ -23,6 +23,11 @@ const step = async (label: string, p: Promise<string>) => {
   return sig;
 };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** The program checks Clock::unix_timestamp, which can lag wall time; wait on the chain's clock. */
+const chainNow = async () => (await connection.getBlockTime(await connection.getSlot())) ?? Math.floor(Date.now() / 1000);
+const waitUntilChain = async (t: number) => {
+  while ((await chainNow()) < t) await sleep(3_000);
+};
 const bal = async (a: PublicKey) => Number((await getAccount(connection, a).catch(() => ({ amount: 0n }))).amount);
 
 const ticker = (process.env.TICKER ?? 'META') as (typeof TICKERS)[number];
@@ -73,7 +78,7 @@ await tradeOnce('Sell NO ×1 (buy YES @ 60 + merge pair → +40¢)', { action: '
 say(`- trader now holds ${await bal(ata(trader.publicKey, client.accounts(market).yesMint))} YES / ${await bal(ata(trader.publicKey, client.accounts(market).noMint))} NO`);
 
 say(`## 5. Wait for close (${minutes} min) — trading halts on-chain at close_ts`);
-while (Math.floor(Date.now() / 1000) < close + 2) await sleep(5_000);
+await waitUntilChain(close + 1);
 
 say('## 6. Settle');
 const cfg = await client.fetchConfig();
@@ -82,7 +87,7 @@ if (hermes.hasKey) {
 } else {
   const until = close + cfg.overrideDelaySecs;
   say(`- no PYTH_API_KEY: oracle path unavailable → admin override unlocks at ${new Date(until * 1000).toISOString()}`);
-  while (Math.floor(Date.now() / 1000) < until + 2) await sleep(10_000);
+  await waitUntilChain(until + 1);
   const price = BigInt(Number(process.env.OVERRIDE_PRICE ?? strikeUsd - 1) * MICRO);
   await step(`admin_settle at $${Number(price) / MICRO}`, send([await client.adminSettle(admin.publicKey, market, price)]));
 }
@@ -108,5 +113,5 @@ const after = await client.fetchMarket(market);
 say('## 8. Invariants');
 say(`- vault balance: ${vault} (collateral ${after.collateral}) — must be 0`);
 say(`- USDC conserved between the two users: ${end.mm + end.trader - start.mm - start.trader === 0 ? 'yes' : 'NO'} (MM ${(end.mm - start.mm) / MICRO >= 0 ? '+' : ''}${(end.mm - start.mm) / MICRO}, trader ${(end.trader - start.trader) / MICRO >= 0 ? '+' : ''}${(end.trader - start.trader) / MICRO})`);
-writeFileSync('docs/devnet-lifecycle-run.md', log.join('\n') + '\n');
+writeFileSync(process.env.RUN_LOG ?? 'docs/devnet-lifecycle-run.md', log.join('\n') + '\n');
 if (vault !== 0 || end.mm + end.trader !== start.mm + start.trader) process.exit(1);

@@ -18,14 +18,11 @@ toolchain:              ## one-time: build the program toolchain + solana CLI im
 	docker build -f docker/toolchain.Dockerfile -t meridian-toolchain docker
 	docker build -f docker/solana-cli.Dockerfile -t meridian-solana docker
 
-build:                  ## compile the program + IDL, copy artifacts to ./target and the IDL into the SDK
-	@mkdir -p target
-	$(TOOLCHAIN) sh -c 'mkdir -p target/deploy && cp keys/meridian-program.json target/deploy/meridian-keypair.json \
-		&& anchor build && mkdir -p /host-target/deploy /host-target/idl /host-target/types \
-		&& cp target/deploy/meridian.so /host-target/deploy/ && cp target/idl/meridian.json /host-target/idl/ \
-		&& cp target/types/meridian.ts /host-target/types/'
-	cp target/idl/meridian.json sdk/src/idl/meridian.json
-	cp target/types/meridian.ts sdk/src/idl/meridian.ts
+build:                  ## compile the program to target/deploy/meridian.so and regenerate the SDK IDL
+	@mkdir -p target/deploy
+	$(TOOLCHAIN) sh -c 'cargo build-sbf --arch v0 --manifest-path programs/meridian/Cargo.toml --sbf-out-dir target/deploy \
+		&& cp target/deploy/meridian.so /host-target/deploy/'
+	python3 scripts/gen_idl.py
 
 test: test-rust test-ts ## all tests
 

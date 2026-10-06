@@ -1,5 +1,6 @@
 import { Buffer } from 'buffer';
-import { BN, Program, type Provider, type IdlAccounts } from '@coral-xyz/anchor';
+import { Program, type Provider, type IdlAccounts } from '@coral-xyz/anchor';
+import BN from 'bn.js'; // direct: anchor's CJS `BN` re-export isn't visible to Node's ESM loader
 import {
   createAssociatedTokenAccountIdempotentInstruction,
   getAssociatedTokenAddressSync,

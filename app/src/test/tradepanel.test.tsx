@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Keypair } from '@solana/web3.js';
+import type { BorshInstructionCoder } from '@coral-xyz/anchor';
 import { MeridianClient, createProgram, intentInstructions } from '@meridian/sdk';
 import { TradePanel, marketQuote } from '@/components/TradePanel';
 import { BOOK } from './fixtures';
@@ -46,7 +47,7 @@ describe('order placement', () => {
     const names = async (i: Parameters<typeof intentInstructions>[3]) =>
       (await intentInstructions(client, user, m, i))
         .filter((ix) => ix.programId.equals(client.programId))
-        .map((ix) => client.program.coder.instruction.decode(ix.data)!.name);
+        .map((ix) => (client.program.coder.instruction as BorshInstructionCoder).decode(ix.data)!.name);
     expect(await names({ action: 'buyYes', qty: 1, price: 60, kind: 'market' })).toEqual(['placeOrder']);
     expect(await names({ action: 'buyNo', qty: 1, price: 40, kind: 'market' })).toEqual(['mintPair', 'placeOrder']);
     expect(await names({ action: 'sellNo', qty: 1, price: 40, kind: 'market' })).toEqual(['placeOrder', 'redeemPair']);
