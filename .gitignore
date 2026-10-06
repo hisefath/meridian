@@ -25,3 +25,10 @@ keys/
 !keys/.gitkeep
 
 .DS_Store
+
+# local tool output
+.surfpool/
+*.core
+app/AGENTS.md
+app/CLAUDE.md
+.env.localnet
