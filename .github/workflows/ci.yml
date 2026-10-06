@@ -4,10 +4,12 @@ on:
     branches: [main]
   pull_request:
 
+# arm64 runners: the litesvm linux-x64 addon aborts with std::bad_alloc on GitHub's x64 runners,
+# while the same suite passes on linux-arm64 (verified locally in node:22) and macOS.
 jobs:
   program:
     name: program (build SBPF v0 + Rust tests)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain image (rust 1.90 + cargo-build-sbf 4.4)
@@ -26,12 +28,12 @@ jobs:
   typescript:
     name: typecheck + LiteSVM integration + automation + frontend
     needs: program
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24 # @pythnetwork/pyth-solana-receiver requires ^24
           cache: npm
       - uses: actions/download-artifact@v4
         with:

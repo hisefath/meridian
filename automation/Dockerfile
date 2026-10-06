@@ -1,6 +1,6 @@
 # Automation service + devnet scripts. Build from the repo root:
 #   docker build -f automation/Dockerfile -t meridian-automation .
-FROM node:22-slim
+FROM node:24-slim
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY sdk/package.json sdk/
