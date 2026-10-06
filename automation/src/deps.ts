@@ -2,7 +2,7 @@
 import { Wallet } from '@coral-xyz/anchor';
 import { PythSolanaReceiver } from '@pythnetwork/pyth-solana-receiver';
 import { outcomeOf } from '@meridian/sdk';
-import { admin, client, connection, env, send } from './chain';
+import { admin, chainNow, client, connection, env, send } from './chain';
 import { Hermes } from './hermes';
 import type { Deps, Settings } from './jobs';
 
@@ -55,7 +55,7 @@ export const deps: Deps = {
       await fetch(webhook, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: `[meridian ${level}] ${msg}`, content: `[meridian ${level}] ${msg}` }) }).catch(() => {});
     }
   },
-  now: () => Math.floor(Date.now() / 1000),
+  now: chainNow,
   sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
 };
 

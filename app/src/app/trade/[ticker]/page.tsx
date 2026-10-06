@@ -2,13 +2,15 @@
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { claimableOf, intentInstructions, ordersOf, TICKERS, type Ticker } from '@meridian/sdk';
+import { claimableOf, intentInstructions, mid, ordersOf, TICKERS, yesView, type Ticker } from '@meridian/sdk';
 import { ContractCard } from '@/components/ContractCard';
 import { Countdown } from '@/components/Countdown';
 import { OrderBook } from '@/components/OrderBook';
 import { TradePanel } from '@/components/TradePanel';
 import { TxStatus } from '@/components/TxStatus';
-import { USDC_MINT, useBalances, useBook, useClient, useMarkets, usePrices, useRefresh, useSend } from '@/lib/meridian';
+import { USDC_MINT, useBalances, useBook, useBooks, useClient, useMarkets, usePrices, useRefresh, useSend } from '@/lib/meridian';
+
+const LABEL = { buyYes: 'Buy YES', sellYes: 'Sell YES', buyNo: 'Buy NO', sellNo: 'Sell NO' } as const;
 
 export default function Trade() {
   const ticker = useParams<{ ticker: string }>().ticker.toUpperCase() as Ticker;
@@ -28,9 +30,13 @@ export default function Trade() {
     const latest = Math.max(0, ...mine.map((m) => m.closeTs));
     return mine.filter((m) => m.closeTs === latest || m.outcome === 'open').sort((a, b) => a.strikeUsd - b.strikeUsd);
   }, [markets, ticker]);
+  const books = useBooks(useMemo(() => list.map((m) => m.pubkey), [list]));
+  // start on the most contested strike (implied probability closest to 50%)
   useEffect(() => {
-    if (!selected && list.length) setSelected(list[Math.floor(list.length / 2)].pubkey.toBase58());
-  }, [list, selected]);
+    if (selected || !list.length || !books.size) return;
+    const score = (k: string) => Math.abs((mid(yesView(books.get(k) ?? [])) ?? 0) - 50);
+    setSelected(list.map((m) => m.pubkey.toBase58()).sort((a, b) => score(a) - score(b))[0]);
+  }, [list, books, selected]);
   const market = list.find((m) => m.pubkey.toBase58() === selected);
   const orders = useBook(market?.pubkey);
 
@@ -65,7 +71,7 @@ export default function Trade() {
           {!markets && <p className="text-sm text-gray-400">Loading contracts…</p>}
           {markets && !list.length && <p className="text-sm text-gray-400">No contracts for {ticker} yet. The morning job creates them before the open.</p>}
           {list.map((m) => (
-            <ContractCard key={m.pubkey.toBase58()} m={m} orders={m.pubkey.toBase58() === selected ? orders : undefined} selected={m.pubkey.toBase58() === selected} onSelect={() => setSelected(m.pubkey.toBase58())} />
+            <ContractCard key={m.pubkey.toBase58()} m={m} orders={m.pubkey.toBase58() === selected ? orders : books.get(m.pubkey.toBase58())} selected={m.pubkey.toBase58() === selected} onSelect={() => setSelected(m.pubkey.toBase58())} />
           ))}
         </aside>
 
@@ -122,7 +128,7 @@ export default function Trade() {
               holdings={holdings}
               connected={!!publicKey}
               tradingOpen={tradingOpen}
-              onSubmit={async (intent) => send(await intentInstructions(client, publicKey!, market.pubkey, intent), intent.action)}
+              onSubmit={async (intent) => send(await intentInstructions(client, publicKey!, market.pubkey, intent), LABEL[intent.action])}
             />
           )}
           {market && publicKey && tradingOpen && (

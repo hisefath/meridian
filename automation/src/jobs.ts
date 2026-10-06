@@ -12,7 +12,8 @@ export interface Deps {
   /** Post the update through the Pyth receiver and settle the given markets with it. */
   settleWith(update: PriceUpdate, markets: PublicKey[]): Promise<void>;
   alert(level: 'info' | 'warn' | 'error', msg: string, ctx?: object): Promise<void>;
-  now(): number;
+  /** chain time (unix secs): decisions must match what the program will check */
+  now(): Promise<number>;
   sleep(ms: number): Promise<void>;
 }
 
@@ -47,8 +48,8 @@ export async function withRetry<T>(deps: Pick<Deps, 'sleep'>, fn: () => Promise<
  */
 export async function todaysClose(deps: Deps): Promise<number | null> {
   const h = await deps.hermes.marketHours(FEED_IDS.AAPL);
-  const today = etDate(deps.now());
-  if (h.nextClose && etDate(h.nextClose) === today && h.nextClose > deps.now()) return h.nextClose;
+  const now = await deps.now();
+  if (h.nextClose && etDate(h.nextClose) === etDate(now) && h.nextClose > now) return h.nextClose;
   return null;
 }
 
@@ -120,7 +121,8 @@ export type SettleState = Map<string, { since: number; escalated: boolean }>;
  * Driven by on-chain state, so it is idempotent and catches up after a restart.
  */
 export async function settleTick(deps: Deps, s: Settings, state: SettleState) {
-  const due = (await deps.openMarkets()).filter((m) => m.closeTs <= deps.now());
+  const now = await deps.now();
+  const due = (await deps.openMarkets()).filter((m) => m.closeTs <= now);
   const groups = new Map<string, typeof due>();
   for (const m of due) {
     const k = `${m.ticker}:${m.closeTs}`;
@@ -141,9 +143,9 @@ export async function settleTick(deps: Deps, s: Settings, state: SettleState) {
       state.delete(key);
       await deps.alert('info', `settled ${markets.length} ${ticker} market(s) at $${Number(toMicro(u.price, u.expo)) / MICRO}`, { close });
     } catch (e) {
-      const f = state.get(key) ?? { since: deps.now(), escalated: false };
+      const f = state.get(key) ?? { since: now, escalated: false };
       state.set(key, f);
-      const waited = deps.now() - f.since;
+      const waited = now - f.since;
       if (waited >= s.settleRetryWindowSecs && !f.escalated) {
         f.escalated = true;
         await deps.alert('error', `${ticker} settlement failing for ${Math.round(waited / 60)} min — admin override required after the delay`, {

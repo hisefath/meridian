@@ -5,7 +5,8 @@ import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { ComputeBudgetProgram, PublicKey, TransactionMessage, VersionedTransaction, type TransactionInstruction } from '@solana/web3.js';
 import { MICRO, MeridianClient, TICKERS, createProgram, outcomeOf, type OrderSlot, type Ticker } from '@meridian/sdk';
 
-export const USDC_MINT = new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT ?? 'Hfc3dPjuECg2n6qk3b8C4G2J2GeMnxKM7KAJ4zzCV4Qg');
+import { USDC_MINT } from './config';
+export { USDC_MINT };
 
 export interface MarketRow {
   pubkey: PublicKey;
@@ -82,6 +83,32 @@ export function useBook(market?: PublicKey) {
     return () => void connection.removeAccountChangeListener(sub);
   }, [client, connection, market?.toBase58()]);
   return orders;
+}
+
+/** Every listed market's book in one RPC round trip, refreshed every few seconds (strike cards). */
+export function useBooks(markets: PublicKey[], intervalMs = 5_000) {
+  const client = useClient();
+  const { connection } = useConnection();
+  const [books, setBooks] = useState<Map<string, OrderSlot[]>>(new Map());
+  const key = markets.map((m) => m.toBase58()).join(',');
+  useEffect(() => {
+    if (!markets.length) return;
+    let live = true;
+    const load = () =>
+      connection.getMultipleAccountsInfo(markets.map((m) => client.accounts(m).book)).then((infos) => {
+        if (!live) return;
+        const next = new Map<string, OrderSlot[]>();
+        infos.forEach((a, i) => a && next.set(markets[i].toBase58(), client.decodeBook(a.data).orders as OrderSlot[]));
+        setBooks(next);
+      });
+    load().catch(() => {});
+    const id = setInterval(() => load().catch(() => {}), intervalMs);
+    return () => {
+      live = false;
+      clearInterval(id);
+    };
+  }, [client, connection, key, intervalMs]);
+  return books;
 }
 
 /** mint → whole-unit balance for every SPL token account the wallet owns. */

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { NextResponse } from 'next/server';
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
 import { createAssociatedTokenAccountIdempotentInstruction, createMintToInstruction, getAssociatedTokenAddressSync } from '@solana/spl-token';
+import { RPC_URL, USDC_MINT } from '@/lib/config';
 
 const lastDrip = new Map<string, number>(); // ponytail: in-memory rate limit, resets on restart
 
@@ -16,7 +17,7 @@ function faucetKey(): Keypair | null {
 }
 
 export async function POST(req: Request) {
-  const rpc = process.env.NEXT_PUBLIC_RPC_URL ?? 'https://api.devnet.solana.com';
+  const rpc = RPC_URL;
   if (!rpc.includes('devnet') && !rpc.includes('127.0.0.1') && !rpc.includes('localhost'))
     return NextResponse.json({ error: 'faucet is devnet/localnet only' }, { status: 403 });
   const signer = faucetKey();
@@ -31,7 +32,7 @@ export async function POST(req: Request) {
   const k = owner.toBase58();
   if (Date.now() - (lastDrip.get(k) ?? 0) < 10 * 60_000) return NextResponse.json({ error: 'one drip per 10 minutes' }, { status: 429 });
 
-  const mint = new PublicKey(process.env.NEXT_PUBLIC_USDC_MINT!);
+  const mint = USDC_MINT;
   const connection = new Connection(rpc, 'confirmed');
   const ata = getAssociatedTokenAddressSync(mint, owner);
   const tx = new Transaction().add(

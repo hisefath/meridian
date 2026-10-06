@@ -22,15 +22,19 @@ export function Nav() {
 
   async function drip() {
     setFaucet('requesting…');
-    const r = await fetch('/api/faucet', { method: 'POST', body: JSON.stringify({ address: publicKey!.toBase58() }) });
-    const body = await r.json();
-    setFaucet(r.ok ? '+100 test USDC' : body.error);
-    if (r.ok) bump();
+    try {
+      const r = await fetch('/api/faucet', { method: 'POST', body: JSON.stringify({ address: publicKey!.toBase58() }) });
+      const body = await r.json().catch(() => ({ error: `faucet error ${r.status}` }));
+      setFaucet(r.ok ? '+100 test USDC' : body.error);
+      if (r.ok) bump();
+    } catch {
+      setFaucet('faucet unreachable');
+    }
   }
 
   return (
     <nav className="sticky top-0 z-10 border-b border-line bg-[#0b0f17]/90 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-2">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2">
         <Link href="/" className="font-bold tracking-tight">
           Meridian<span className="ml-1 rounded bg-amber-500/20 px-1 text-[10px] font-medium text-amber-300">DEVNET</span>
         </Link>
@@ -41,7 +45,7 @@ export function Nav() {
             </Link>
           ))}
         </div>
-        <div className="ml-auto flex items-center gap-3 text-sm">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2 text-sm">
           {publicKey && (
             <>
               <span className="num text-gray-300" aria-label="USDC balance">

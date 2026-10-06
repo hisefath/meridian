@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { applyEvents, claimableOf, fillsToTrades, marketEvents, mid, yesView, type OrderSlot, type Position } from '@meridian/sdk';
+import { applyEvents, claimableOf, fillsToTrades, marketEvents, mid, touchedMarkets, yesView, type OrderSlot, type Position } from '@meridian/sdk';
 import { PositionRow } from '@/components/PositionRow';
 import { TxStatus } from '@/components/TxStatus';
 import { useBalances, useClient, useMarkets, useRefresh, useSend, type MarketRow } from '@/lib/meridian';
@@ -30,6 +30,8 @@ export default function Portfolio() {
     (async () => {
       // books of every market in one RPC round trip, to find resting orders and unclaimed fills
       const books = await connection.getMultipleAccountsInfo(markets.map((m) => client.accounts(m.pubkey).book));
+      // closed-out positions still matter for realized P&L
+      const touched = new Set((await touchedMarkets(connection, publicKey, markets.map((m) => m.pubkey))).map((k) => k.toBase58()));
       const out: Row[] = [];
       for (const [i, m] of markets.entries()) {
         const a = client.accounts(m.pubkey);
@@ -37,7 +39,7 @@ export default function Portfolio() {
         const no = balances.get(a.noMint.toBase58()) ?? 0;
         const orders = (books[i] ? client.decodeBook(books[i]!.data).orders : []) as OrderSlot[];
         const mine = orders.some((o) => o.owner.equals(publicKey) && (Number(o.qty) > 0 || Number(o.claimable) > 0));
-        if (yes + no === 0 && !mine) continue;
+        if (yes + no === 0 && !mine && !touched.has(m.pubkey.toBase58())) continue;
         const events = await marketEvents(connection, client.program, m.pubkey);
         const fills = events.filter((e) => e.name === 'fill').map((e) => e.data as any);
         out.push({ m, yes, no, orders, pos: applyEvents(fillsToTrades(fills, publicKey)) });
@@ -51,6 +53,7 @@ export default function Portfolio() {
 
   if (!publicKey) return <p className="text-gray-400">Connect a wallet to see your positions.</p>;
   const open = rows?.filter((r) => r.m.outcome === 'open') ?? [];
+  // markets traded today but now flat: shown for their realized P&L
   const settled = rows?.filter((r) => r.m.outcome !== 'open') ?? [];
   const realized = (rows ?? []).reduce((s, r) => s + r.pos.realized, 0);
 

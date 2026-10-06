@@ -36,3 +36,21 @@ export async function marketEvents(connection: Connection, program: MeridianProg
   });
   return out.reverse();
 }
+
+/**
+ * Markets a wallet has touched, read from the wallet's own recent transactions (every
+ * mint, order, cancel, claim and redeem is signed by the user, so maker positions show up too).
+ */
+export async function touchedMarkets(connection: Connection, owner: PublicKey, markets: PublicKey[], limit = 300) {
+  const known = new Map(markets.map((m) => [m.toBase58(), m]));
+  const sigs = await connection.getSignaturesForAddress(owner, { limit });
+  const txs = await connection.getTransactions(
+    sigs.map((s) => s.signature),
+    { maxSupportedTransactionVersion: 0, commitment: 'confirmed' },
+  );
+  const hit = new Set<string>();
+  for (const tx of txs) {
+    for (const k of tx?.transaction.message.staticAccountKeys ?? []) if (known.has(k.toBase58())) hit.add(k.toBase58());
+  }
+  return [...hit].map((k) => known.get(k)!);
+}

@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { marketEvents, type ParsedEvent } from '@meridian/sdk';
+import { marketEvents, touchedMarkets, type ParsedEvent } from '@meridian/sdk';
 import { describeEvent } from '@/lib/history';
 import { explorerTx, useBalances, useClient, useMarkets, type MarketRow } from '@/lib/meridian';
 
@@ -25,8 +25,9 @@ export default function History() {
     (async () => {
       const me = publicKey.toBase58();
       const out: Line[] = [];
-      // ponytail: scans the 40 most recent markets; an indexer would serve full history
-      for (const m of markets.slice(0, 40)) {
+      // only markets this wallet has transacted in (from its own signatures)
+      const touched = new Set((await touchedMarkets(connection, publicKey, markets.map((m) => m.pubkey))).map((k) => k.toBase58()));
+      for (const m of markets.filter((x) => touched.has(x.pubkey.toBase58()))) {
         for (const e of await marketEvents(connection, client.program, m.pubkey, 200)) {
           const what = describeEvent(e, me);
           if (what) out.push({ e, m, what });

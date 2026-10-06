@@ -47,3 +47,6 @@ export async function send(ixs: TransactionInstruction[], signers: Keypair[] = [
 
 export const explorer = (sig: string) =>
   `https://explorer.solana.com/tx/${sig}?cluster=${connection.rpcEndpoint.includes('devnet') ? 'devnet' : 'custom'}`;
+
+/** The program's clock (Clock::unix_timestamp). Container/VM clocks drift (Docker's ran 9 min fast here); decisions must use the chain's. */
+export const chainNow = async () => (await connection.getBlockTime(await connection.getSlot())) ?? Math.floor(Date.now() / 1000);

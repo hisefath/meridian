@@ -47,7 +47,7 @@ function fakeDeps(over: Partial<Deps> = {}) {
     openMarkets: async () => [],
     settleWith: async () => {},
     alert: async (level, msg) => void alerts.push({ level, msg }),
-    now: () => now,
+    now: async () => now,
     sleep: async () => {},
     ...over,
   };

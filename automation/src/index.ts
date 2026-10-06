@@ -6,7 +6,7 @@
 //   demo      — create one market closing soon: --ticker META --strike 680 --minutes 10
 import { PublicKey } from '@solana/web3.js';
 import { FEED_IDS, MICRO, TICKERS } from '@meridian/sdk';
-import { admin, client, env, send } from './chain';
+import { admin, chainNow, client, env, send } from './chain';
 import { deps, hermes, settings } from './deps';
 import { morning, settleTick, type SettleState } from './jobs';
 
@@ -51,7 +51,7 @@ async function main() {
   if (cmd === 'demo') {
     const t = TICKERS.indexOf((arg('ticker') ?? 'META') as (typeof TICKERS)[number]);
     const strike = BigInt(Math.round(Number(arg('strike')) * MICRO));
-    const close = Math.floor(Date.now() / 1000) + Number(arg('minutes') ?? '10') * 60;
+    const close = (await chainNow()) + Number(arg('minutes') ?? '10') * 60;
     await send([await client.createStrikeMarket(admin.publicKey, t, strike, close, true)]);
     console.log({ market: client.marketAddress(t, close, strike).toBase58(), close: new Date(close * 1000).toISOString(), feed: FEED_IDS[TICKERS[t]] });
     return;

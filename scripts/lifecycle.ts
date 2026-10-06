@@ -7,7 +7,7 @@ import { writeFileSync } from 'node:fs';
 import { Keypair, LAMPORTS_PER_SOL, SystemProgram, type PublicKey } from '@solana/web3.js';
 import { createAssociatedTokenAccountIdempotentInstruction, createMintToInstruction, getAccount } from '@solana/spl-token';
 import { FEED_IDS, MICRO, TICKERS, ata, intentInstructions, outcomeOf, type TradeIntent } from '@meridian/sdk';
-import { admin, client, connection, env, explorer, loadKeypair, send, usdcMint } from '../automation/src/chain';
+import { admin, chainNow, client, connection, env, explorer, loadKeypair, send, usdcMint } from '../automation/src/chain';
 import { deps, hermes, settings } from '../automation/src/deps';
 import { settleTick, todaysClose } from '../automation/src/jobs';
 import { toMicro } from '../automation/src/hermes';
@@ -23,8 +23,6 @@ const step = async (label: string, p: Promise<string>) => {
   return sig;
 };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-/** The program checks Clock::unix_timestamp, which can lag wall time; wait on the chain's clock. */
-const chainNow = async () => (await connection.getBlockTime(await connection.getSlot())) ?? Math.floor(Date.now() / 1000);
 const waitUntilChain = async (t: number) => {
   while ((await chainNow()) < t) await sleep(3_000);
 };
@@ -41,7 +39,7 @@ if (!strikeUsd && hermes.hasKey) {
   strikeUsd = Math.round(Number(toMicro(u!.price, u!.expo)) / MICRO / 10) * 10;
 }
 if (!strikeUsd) strikeUsd = 680;
-const close = Math.floor(Date.now() / 1000) + minutes * 60;
+const close = (await chainNow()) + minutes * 60;
 const market = client.marketAddress(t, close, strikeUsd * MICRO);
 
 say(`## 1. Create market "${ticker} ≥ $${strikeUsd}" closing ${new Date(close * 1000).toISOString()}`);

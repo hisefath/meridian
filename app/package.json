@@ -10,12 +10,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@meridian/sdk": "*",
     "@coral-xyz/anchor": "0.32.1",
+    "@meridian/sdk": "*",
     "@solana/spl-token": "^0.4.13",
     "@solana/wallet-adapter-base": "^0.9.28",
     "@solana/wallet-adapter-react": "^0.15.40",
     "@solana/wallet-adapter-react-ui": "^0.9.40",
+    "@solana/wallet-adapter-unsafe-burner": "^0.1.12",
     "@solana/web3.js": "^1.99.0",
     "buffer": "^6.0.3",
     "next": "16.3.8",
